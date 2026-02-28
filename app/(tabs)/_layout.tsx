@@ -15,7 +15,6 @@ export default function TabLayout() {
         <Tabs.Screen name="home" />
         <Tabs.Screen name="explore" />
         <Tabs.Screen name="create" />
-        <Tabs.Screen name="chat" />
         <Tabs.Screen name="profile" />
       </Tabs>
       <AIGuide />

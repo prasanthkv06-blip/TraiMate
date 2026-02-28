@@ -8,9 +8,8 @@ import { Colors, Fonts, FontSizes, Spacing } from '../constants/theme';
 
 const TAB_ICONS: Record<string, { default: keyof typeof Ionicons.glyphMap; active: keyof typeof Ionicons.glyphMap; label: string }> = {
   home: { default: 'home-outline', active: 'home', label: 'Home' },
-  explore: { default: 'search-outline', active: 'search', label: 'Explore' },
+  explore: { default: 'compass-outline', active: 'compass', label: 'Discover' },
   create: { default: 'add', active: 'add', label: 'New Trip' },
-  chat: { default: 'chatbubble-ellipses-outline', active: 'chatbubble-ellipses', label: 'Guide' },
   profile: { default: 'person-outline', active: 'person', label: 'Profile' },
 };
 
