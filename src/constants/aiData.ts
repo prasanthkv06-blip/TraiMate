@@ -13,6 +13,13 @@ export const CATEGORY_ICONS: Record<string, string> = {
   sightseeing: '📸', nightlife: '🌙', wellness: '🧘', culture: '🎭', beach: '🏖️',
 };
 
+// Ionicons equivalents for each category (use these instead of emoji in UI)
+export const CATEGORY_IONICONS: Record<string, string> = {
+  food: 'restaurant', transport: 'car', hotel: 'bed', activity: 'flag',
+  shopping: 'bag', sightseeing: 'camera', nightlife: 'moon',
+  wellness: 'leaf', culture: 'color-palette', beach: 'umbrella',
+};
+
 export const CATEGORY_COLORS: Record<string, string> = {
   food: '#B07A50', transport: '#4A8BA8', hotel: '#8B6DB5', activity: '#5E8A5A',
   shopping: '#D4A574', sightseeing: '#6B8E6B', nightlife: '#9B59B6',

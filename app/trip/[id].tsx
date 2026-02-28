@@ -26,7 +26,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors, Fonts, FontSizes, Spacing, BorderRadius, Shadows } from '../../src/constants/theme';
 import AIGuide from '../../src/components/AIGuide';
 import { SAMPLE_TRIPS } from '../../src/constants/sampleData';
-import { CATEGORY_ICONS, CATEGORY_COLORS, type AISuggestion } from '../../src/constants/aiData';
+import { CATEGORY_ICONS, CATEGORY_COLORS, CATEGORY_IONICONS, type AISuggestion } from '../../src/constants/aiData';
 import {
   generateItinerary,
   createEmptyDays,
@@ -900,13 +900,22 @@ export default function TripDetailScreen() {
                           </View>
 
                           <View style={styles.itineraryContent}>
-                            <Text style={styles.itineraryEmoji}>{item.emoji}</Text>
+                            <View style={[styles.livePlanIcon, { backgroundColor: `${CATEGORY_COLORS[item.type] || Colors.sage}18` }]}>
+                              <Ionicons
+                                name={(CATEGORY_IONICONS[item.type] || 'flag') as any}
+                                size={18}
+                                color={CATEGORY_COLORS[item.type] || Colors.sage}
+                              />
+                            </View>
                             <Text style={styles.itineraryTitle}>{item.title}</Text>
                           </View>
 
                           {/* Location */}
                           {item.location && (
-                            <Text style={styles.itineraryLocation}>📍 {item.location}</Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
+                              <Ionicons name="location-outline" size={12} color={Colors.textMuted} />
+                              <Text style={styles.itineraryLocation}>{item.location}</Text>
+                            </View>
                           )}
 
                           {/* AI Tip */}
@@ -1246,7 +1255,13 @@ export default function TripDetailScreen() {
                       </View>
                     </View>
                     <View style={styles.itineraryContent}>
-                      <Text style={styles.itineraryEmoji}>{item.emoji}</Text>
+                      <View style={[styles.livePlanIcon, { backgroundColor: `${CATEGORY_COLORS[item.type] || Colors.sage}18` }]}>
+                        <Ionicons
+                          name={(CATEGORY_IONICONS[item.type] || 'flag') as any}
+                          size={18}
+                          color={CATEGORY_COLORS[item.type] || Colors.sage}
+                        />
+                      </View>
                       <View style={{ flex: 1 }}>
                         <Text style={styles.itineraryTitle}>{item.title}</Text>
                         {item.location && (
@@ -3637,6 +3652,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   // ── Today's Plan enhancements ──
+  livePlanIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 11,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+  },
   liveViewToggle: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
