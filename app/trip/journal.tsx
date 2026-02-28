@@ -19,7 +19,7 @@ import * as Haptics from 'expo-haptics';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Fonts, FontSizes, Spacing, BorderRadius, Shadows } from '../../src/constants/theme';
-import { useTripContext } from '../../src/contexts/TripContext';
+import { useTripContext, getCurrencySymbol } from '../../src/contexts/TripContext';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const PHOTO_COL_WIDTH = (SCREEN_WIDTH - Spacing.xl * 2 - Spacing.xl * 2 - 10) / 2;
@@ -194,7 +194,25 @@ export default function JournalScreen() {
     Alert.alert('Coming Soon', 'Voice-to-text will be available in a future update');
   };
 
-  const stats = { activities: 0, expenses: 0, spent: 0 };
+  // Compute stats from context for current day
+  const dayItinerary = tripCtx.itinerary.find(d => d.dayNumber === selectedDay);
+  const dayExpenses = tripCtx.expenses.filter(e => {
+    // Match expenses by date — if trip has startDate, compute which day an expense belongs to
+    if (!startDate) return false;
+    try {
+      const tripStart = new Date(startDate);
+      const expDate = new Date(e.date);
+      const dayNum = Math.ceil((expDate.getTime() - tripStart.getTime()) / 86400000) + 1;
+      return dayNum === selectedDay;
+    } catch {
+      return false;
+    }
+  });
+  const stats = {
+    activities: dayItinerary?.items.length || 0,
+    expenses: dayExpenses.length,
+    spent: dayExpenses.reduce((sum, e) => sum + e.amount, 0),
+  };
   const hasSavedEntry = !!savedEntries[selectedDay];
 
   return (
@@ -531,14 +549,14 @@ export default function JournalScreen() {
                 <View style={[styles.statIconCircle, { backgroundColor: 'rgba(199, 84, 80, 0.10)' }]}>
                   <Ionicons name="cash-outline" size={20} color="#C75450" />
                 </View>
-                <Text style={styles.statValue}>{stats.spent.toLocaleString()}</Text>
+                <Text style={styles.statValue}>{getCurrencySymbol(tripCtx.tripMeta.currency)}{stats.spent.toLocaleString()}</Text>
                 <Text style={styles.statLabel}>Spent</Text>
               </View>
             </View>
             <View style={styles.statsSummaryRow}>
               <Ionicons name="information-circle-outline" size={14} color={Colors.textMuted} />
               <Text style={styles.statsSummary}>
-                {stats.activities} activities  {'\u00B7'}  {stats.expenses} expenses  {'\u00B7'}  {stats.spent.toLocaleString()} spent
+                {stats.activities} activities  {'\u00B7'}  {stats.expenses} expenses  {'\u00B7'}  {getCurrencySymbol(tripCtx.tripMeta.currency)}{stats.spent.toLocaleString()} spent
               </Text>
             </View>
           </View>

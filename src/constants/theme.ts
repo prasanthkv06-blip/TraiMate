@@ -1,5 +1,5 @@
 /**
- * TrailMate Design System
+ * TraiMate Design System
  */
 
 export const Colors = {

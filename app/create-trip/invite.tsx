@@ -228,7 +228,7 @@ function QRModal({
           </View>
 
           <Text style={modalStyles.qrHint}>
-            Ask your friends to scan this QR code or{'\n'}enter the invite code in TrailMate
+            Ask your friends to scan this QR code or{'\n'}enter the invite code in TraiMate
           </Text>
 
           <Pressable onPress={onClose} style={modalStyles.qrCloseBtn}>
@@ -345,7 +345,7 @@ export default function InviteScreen() {
     try {
       await Share.share({
         message: shareMessage,
-        title: `Join ${tripName} on TrailMate`,
+        title: `Join ${tripName} on TraiMate`,
       });
     } catch {
       // user cancelled
@@ -514,7 +514,7 @@ export default function InviteScreen() {
               )}
             </View>
 
-            {/* Search results from TrailMate users */}
+            {/* Search results from TraiMate users */}
             {filteredContacts.length > 0 && (
               <View style={styles.searchResults}>
                 {filteredContacts.slice(0, 4).map((contact) => (

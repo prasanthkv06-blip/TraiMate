@@ -190,3 +190,22 @@ export function useTripContext() {
 export function useTripContextSafe() {
   return useContext(TripContext);
 }
+
+// ── Currency formatting helper ────────────────────────────────────────
+
+const CURRENCY_SYMBOLS: Record<string, string> = {
+  INR: '₹', USD: '$', EUR: '€', GBP: '£', AED: 'د.إ', THB: '฿', JPY: '¥', AUD: 'A$',
+};
+
+export function getCurrencySymbol(currencyCode?: string): string {
+  if (!currencyCode) return '$';
+  return CURRENCY_SYMBOLS[currencyCode] || '$';
+}
+
+export function formatAmount(amount: number, currencyCode?: string): string {
+  const symbol = getCurrencySymbol(currencyCode);
+  if (currencyCode === 'INR') {
+    return `${symbol}${amount.toLocaleString('en-IN')}`;
+  }
+  return `${symbol}${amount.toLocaleString()}`;
+}

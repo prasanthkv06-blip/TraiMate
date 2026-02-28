@@ -43,7 +43,7 @@ import {
   type ShareFormat,
   type MapLocation,
 } from '../../src/utils/reviewHelpers';
-import { useTripContextSafe } from '../../src/contexts/TripContext';
+import { useTripContextSafe, getCurrencySymbol } from '../../src/contexts/TripContext';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -190,6 +190,9 @@ export default function ReviewScreen() {
     : (tripCtx?.itinerary.length || 5);
   const tripName = searchParams.tripName || tripCtx?.tripMeta.name || 'Goa Adventure';
 
+  // ── Currency ─────────────────────────────────────────────────────
+  const currSymbol = getCurrencySymbol(tripCtx?.tripMeta.currency);
+
   // ── Computed data ──────────────────────────────────────────────────
   const settlementData = calculateSettlements(expenses, members);
   const reportData = generateTripReport(expenses, members, dayCount, destination);
@@ -242,7 +245,7 @@ export default function ReviewScreen() {
     try {
       await Share.share({
         title: `${tripName} — Trip Recap`,
-        message: `Just wrapped up ${dayCount} amazing days in ${destination}! Total spend: ₹${reportData.totalSpent.toLocaleString('en-IN')} across ${expenses.length} expenses with ${members.length} friends. Trip score: ${reportData.tripScore}/100. Planned with TraiMate.`,
+        message: `Just wrapped up ${dayCount} amazing days in ${destination}! Total spend: ${currSymbol}${reportData.totalSpent.toLocaleString()} across ${expenses.length} expenses with ${members.length} friends. Trip score: ${reportData.tripScore}/100. Planned with TraiMate.`,
       });
     } catch {}
   };
@@ -317,11 +320,11 @@ export default function ReviewScreen() {
             <View style={{ flex: 1 }}>
               <Text style={{ fontFamily: Fonts.body, fontSize: FontSizes.xs, color: 'rgba(255,255,255,0.7)' }}>Per Person Share</Text>
               <Text style={{ fontFamily: Fonts.heading, fontSize: FontSizes.xxl, color: Colors.white }}>
-                ₹{settlementData.perPerson.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                {currSymbol}{settlementData.perPerson.toLocaleString(undefined, { maximumFractionDigits: 0 })}
               </Text>
             </View>
             <View style={{ alignItems: 'flex-end' }}>
-              <Text style={{ fontFamily: Fonts.bodySemiBold, fontSize: FontSizes.sm, color: 'rgba(255,255,255,0.9)' }}>₹{settlementData.totalSpent.toLocaleString('en-IN')}</Text>
+              <Text style={{ fontFamily: Fonts.bodySemiBold, fontSize: FontSizes.sm, color: 'rgba(255,255,255,0.9)' }}>{currSymbol}{settlementData.totalSpent.toLocaleString()}</Text>
               <Text style={{ fontFamily: Fonts.body, fontSize: 10, color: 'rgba(255,255,255,0.6)' }}>÷ {members.length} people</Text>
             </View>
           </LinearGradient>
@@ -342,7 +345,7 @@ export default function ReviewScreen() {
               </View>
               <View style={styles.memberInfo}>
                 <Text style={styles.memberName}>{member.name}</Text>
-                <Text style={styles.memberPaid}>Paid ₹{member.paid.toLocaleString('en-IN')}</Text>
+                <Text style={styles.memberPaid}>Paid {currSymbol}{member.paid.toLocaleString()}</Text>
               </View>
               <View style={styles.memberBalanceCol}>
                 <View style={[styles.balanceBadge, { backgroundColor: isPositive ? 'rgba(94,138,90,0.12)' : 'rgba(199,84,80,0.12)' }]}>
@@ -352,7 +355,7 @@ export default function ReviewScreen() {
                     color={isPositive ? Colors.success : Colors.error}
                   />
                   <Text style={[styles.memberBalanceAmount, { color: isPositive ? Colors.success : Colors.error }]}>
-                    ₹{Math.abs(member.balance).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                    {currSymbol}{Math.abs(member.balance).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                   </Text>
                 </View>
                 <Text style={[styles.memberBalanceLabel, { color: isPositive ? Colors.success : Colors.error }]}>
@@ -388,7 +391,7 @@ export default function ReviewScreen() {
                   <Text style={styles.settlementName}>{s.to}</Text>
                 </View>
                 <Text style={[styles.settlementAmount, isSettled && { color: Colors.textMuted }]}>
-                  ₹{s.amount.toLocaleString('en-IN')}
+                  {currSymbol}{s.amount.toLocaleString()}
                 </Text>
               </View>
               <View style={[styles.settleCheckbox, isSettled && styles.settleCheckboxActive]}>
@@ -456,7 +459,7 @@ export default function ReviewScreen() {
               <Ionicons name="trending-down" size={24} color={Colors.success} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.savingsTitle}>You saved ₹{reportData.savingsVsSimilar.toLocaleString('en-IN')}</Text>
+              <Text style={styles.savingsTitle}>You saved {currSymbol}{reportData.savingsVsSimilar.toLocaleString()}</Text>
               <Text style={styles.savingsDesc}>compared to similar trips to {destination}</Text>
             </View>
           </View>
@@ -470,7 +473,7 @@ export default function ReviewScreen() {
 
         <View style={styles.totalSpentRow}>
           <Text style={styles.totalSpentLabel}>Total Spent</Text>
-          <Text style={styles.totalSpentAmount}>₹{reportData.totalSpent.toLocaleString('en-IN')}</Text>
+          <Text style={styles.totalSpentAmount}>{currSymbol}{reportData.totalSpent.toLocaleString()}</Text>
         </View>
 
         <View style={styles.card}>
@@ -488,7 +491,7 @@ export default function ReviewScreen() {
                     <Text style={styles.categoryName}>{catLabel}</Text>
                   </View>
                   <View style={styles.categoryRight}>
-                    <Text style={styles.categoryAmount}>₹{cat.amount.toLocaleString('en-IN')}</Text>
+                    <Text style={styles.categoryAmount}>{currSymbol}{cat.amount.toLocaleString()}</Text>
                     <Text style={[styles.categoryPct, { color: cat.color }]}>{cat.pct.toFixed(0)}%</Text>
                   </View>
                 </View>
@@ -716,7 +719,7 @@ export default function ReviewScreen() {
 
         <View style={styles.funStatsGrid}>
           {[
-            { icon: 'pizza', value: `₹${(reportData.categoryBreakdown.find(c => c.category === 'food')?.amount || 0).toLocaleString('en-IN')}`, label: 'Spent on Food', color: '#B07A50' },
+            { icon: 'pizza', value: `${currSymbol}${(reportData.categoryBreakdown.find(c => c.category === 'food')?.amount || 0).toLocaleString()}`, label: 'Spent on Food', color: '#B07A50' },
             { icon: 'bed', value: `${dayCount}`, label: 'Nights Away', color: '#8B6DB5' },
             { icon: 'camera', value: `${journals.reduce((s, j) => s + j.photos.length, 0) || 23}`, label: 'Photos Taken', color: '#4A8BA8' },
             { icon: 'happy', value: `${journals.filter(j => j.mood === 'amazing').length}`, label: 'Amazing Days', color: '#5E8A5A' },
@@ -827,6 +830,16 @@ export default function ReviewScreen() {
   // RENDER
   // ══════════════════════════════════════════════════════════════════
 
+  const renderEmptyBanner = () => {
+    if (hasRealData) return null;
+    return (
+      <View style={styles.demoBanner}>
+        <Ionicons name="information-circle-outline" size={16} color={Colors.accent} />
+        <Text style={styles.demoBannerText}>Showing sample data. Add expenses, journal entries, and itinerary to see your real recap.</Text>
+      </View>
+    );
+  };
+
   const renderContent = () => {
     switch (activeTab) {
       case 'settle': return renderSettle();
@@ -887,6 +900,7 @@ export default function ReviewScreen() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
         >
+          {renderEmptyBanner()}
           {renderContent()}
           <View style={{ height: insets.bottom + 40 }} />
         </ScrollView>
@@ -1058,6 +1072,26 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
+  },
+
+  // Demo banner
+  demoBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#FDF6F0',
+    borderWidth: 1,
+    borderColor: Colors.accent,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  demoBannerText: {
+    flex: 1,
+    fontFamily: Fonts.body,
+    fontSize: FontSizes.xs,
+    color: Colors.textSecondary,
   },
 
   // Header

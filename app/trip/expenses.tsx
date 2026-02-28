@@ -18,7 +18,7 @@ import * as Haptics from 'expo-haptics';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Fonts, FontSizes, Spacing, BorderRadius, Shadows } from '../../src/constants/theme';
-import { useTripContext, type TripExpense } from '../../src/contexts/TripContext';
+import { useTripContext, type TripExpense, getCurrencySymbol } from '../../src/contexts/TripContext';
 
 const CATEGORIES = [
   { id: 'food', icon: 'restaurant-outline' as const, label: 'Food' },
@@ -52,6 +52,7 @@ export default function ExpensesScreen() {
     Animated.timing(contentOpacity, { toValue: 1, duration: 500, useNativeDriver: true }).start();
   }, []);
 
+  const currSymbol = getCurrencySymbol(tripCtx.tripMeta.currency);
   const totalSpent = expenses.reduce((sum, e) => sum + e.amount, 0);
 
   // Calculate balances
@@ -137,7 +138,7 @@ export default function ExpensesScreen() {
               style={styles.totalGradient}
             >
               <Text style={styles.totalLabel}>Total Group Spend</Text>
-              <Text style={styles.totalAmount}>${totalSpent.toFixed(2)}</Text>
+              <Text style={styles.totalAmount}>{currSymbol}{totalSpent.toFixed(2)}</Text>
               <Text style={styles.totalSub}>{expenses.length} expenses · {MEMBERS.length} people</Text>
             </LinearGradient>
           </View>
@@ -155,7 +156,7 @@ export default function ExpensesScreen() {
                   </View>
                   <Text style={styles.balanceName}>{member}</Text>
                   <Text style={[styles.balanceAmount, { color: isPositive ? Colors.sage : Colors.error }]}>
-                    {isPositive ? '+' : ''}{bal.toFixed(2)}
+                    {isPositive ? '+' : ''}{currSymbol}{Math.abs(bal).toFixed(2)}
                   </Text>
                 </View>
               );
@@ -203,7 +204,7 @@ export default function ExpensesScreen() {
                   <Image source={{ uri: expense.receiptUri }} style={styles.expenseReceiptThumb} />
                 )}
                 <View style={styles.expenseAmountCol}>
-                  <Text style={styles.expenseAmount}>${expense.amount.toFixed(2)}</Text>
+                  <Text style={styles.expenseAmount}>{currSymbol}{expense.amount.toFixed(2)}</Text>
                   <Text style={styles.expenseSplit}>
                     ÷{expense.splitWith.length}
                   </Text>

@@ -261,7 +261,14 @@ export default function TripDetailScreen() {
   const livePulse = useRef(new Animated.Value(0.4)).current;
   const [dockExpanded, setDockExpanded] = useState(false);
   const dockAnim = useRef(new Animated.Value(0)).current;
-  const inviteCode = 'x7kq2m';
+  // Generate stable invite code from trip ID
+  const [inviteCode] = useState(() => {
+    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    let code = '';
+    const seed = (params.id || 'trip').split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+    for (let i = 0; i < 6; i++) code += chars[(seed * (i + 7) + i * 13) % chars.length];
+    return code;
+  });
 
   useEffect(() => {
     Animated.timing(contentOpacity, {
@@ -327,7 +334,7 @@ export default function TripDetailScreen() {
 
   const handleShare = async (channel: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const msg = `Yo! Join "${trip.name}" to ${trip.destination} on TrailMate 🌍\n\n${inviteLink}`;
+    const msg = `Yo! Join "${trip.name}" to ${trip.destination} on TraiMate 🌍\n\n${inviteLink}`;
     if (channel === 'native') {
       try { await Share.share({ message: msg, title: trip.name }); } catch {}
     }
@@ -1620,7 +1627,7 @@ export default function TripDetailScreen() {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                     setDockExpanded(false);
                     Animated.spring(dockAnim, { toValue: 0, useNativeDriver: true, friction: 8 }).start();
-                    router.push({ pathname: '/trip/expenses' as any, params: { tripId: params.id, destination: params.destination || '' } });
+                    router.push({ pathname: '/trip/expenses' as any, params: { tripId: params.id, destination: params.destination || '', startDate: params.startDate || '', endDate: params.endDate || '' } });
                   }}
                   style={({ pressed }) => [styles.dockCard, pressed && { transform: [{ scale: 0.95 }] }]}
                 >

@@ -133,7 +133,7 @@ export default function WelcomeScreen() {
             transform: [{ translateY: titleY }],
           }}
         >
-          <Text style={styles.title}>TrailMate</Text>
+          <Text style={styles.title}>TraiMate</Text>
         </Animated.View>
 
         {/* Subtitle */}
