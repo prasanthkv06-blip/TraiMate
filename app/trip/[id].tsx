@@ -76,7 +76,7 @@ type Phase = 'plan' | 'live' | 'review';
 const PHASE_TABS: { key: Phase; label: string; icon: string }[] = [
   { key: 'plan', label: 'Plan', icon: 'map-outline' },
   { key: 'live', label: 'Live', icon: 'navigate-outline' },
-  { key: 'review', label: 'Review', icon: 'camera-outline' },
+  { key: 'review', label: 'Recap', icon: 'sparkles-outline' },
 ];
 
 // ── Activity type options for the add/edit sheet ───────────────────────────
@@ -1827,54 +1827,101 @@ export default function TripDetailScreen() {
         })()}
 
         {/* ══════════════════════════════════════════════════════
-            REVIEW TAB
+            RECAP TAB
         ══════════════════════════════════════════════════════ */}
         {activePhase === 'review' && (
           <ScrollView
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.scrollContent}
           >
-            <View style={[styles.itineraryCard, { alignItems: 'center', paddingVertical: 24, marginBottom: Spacing.md }]}>
-              <Ionicons name="trophy-outline" size={48} color={Colors.accent} style={{ marginBottom: 8 }} />
-              <Text style={{ fontFamily: Fonts.heading, fontSize: FontSizes.xl, color: Colors.text }}>Trip Complete!</Text>
-              <Text style={{ fontFamily: Fonts.body, fontSize: FontSizes.sm, color: Colors.textSecondary, marginTop: 4 }}>{itinerary.length || 3} days · 12 expenses · 2 journals</Text>
+            {/* Hero Card */}
+            <View style={{ borderRadius: BorderRadius.lg, overflow: 'hidden', marginBottom: Spacing.lg, ...Shadows.cardHover }}>
+              <LinearGradient
+                colors={['#B07A50', '#8B5E3C']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={{ padding: Spacing.xl, alignItems: 'center' }}
+              >
+                <Ionicons name="sparkles" size={40} color="#FFC947" style={{ marginBottom: 8 }} />
+                <Text style={{ fontFamily: Fonts.heading, fontSize: FontSizes.xxl, color: Colors.white }}>Trip Recap</Text>
+                <Text style={{ fontFamily: Fonts.body, fontSize: FontSizes.sm, color: 'rgba(255,255,255,0.8)', marginTop: 6, textAlign: 'center' }}>
+                  {itinerary.length || 5} days of adventure, memories, and stories
+                </Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-around', width: '100%', marginTop: Spacing.lg, paddingTop: Spacing.md, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.15)' }}>
+                  <View style={{ alignItems: 'center' }}>
+                    <Text style={{ fontFamily: Fonts.bodySemiBold, fontSize: FontSizes.xl, color: Colors.white }}>{itinerary.length || 5}</Text>
+                    <Text style={{ fontFamily: Fonts.body, fontSize: FontSizes.xs, color: 'rgba(255,255,255,0.6)' }}>Days</Text>
+                  </View>
+                  <View style={{ width: 1, height: 28, backgroundColor: 'rgba(255,255,255,0.15)' }} />
+                  <View style={{ alignItems: 'center' }}>
+                    <Text style={{ fontFamily: Fonts.bodySemiBold, fontSize: FontSizes.xl, color: Colors.white }}>{squad.length}</Text>
+                    <Text style={{ fontFamily: Fonts.body, fontSize: FontSizes.xs, color: 'rgba(255,255,255,0.6)' }}>Mates</Text>
+                  </View>
+                  <View style={{ width: 1, height: 28, backgroundColor: 'rgba(255,255,255,0.15)' }} />
+                  <View style={{ alignItems: 'center' }}>
+                    <Text style={{ fontFamily: Fonts.bodySemiBold, fontSize: FontSizes.xl, color: Colors.white }}>{itinerary.reduce((s, d) => s + d.items.length, 0)}</Text>
+                    <Text style={{ fontFamily: Fonts.body, fontSize: FontSizes.xs, color: 'rgba(255,255,255,0.6)' }}>Activities</Text>
+                  </View>
+                </View>
+              </LinearGradient>
             </View>
 
-            <View style={{ flexDirection: 'row', gap: 10, marginBottom: Spacing.xl }}>
-              <Pressable
-                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push('/trip/review' as any); }}
-                style={{ flex: 1, backgroundColor: Colors.white, borderRadius: BorderRadius.md, padding: 16, alignItems: 'center', ...Shadows.card }}
-              >
-                <Ionicons name="stats-chart-outline" size={24} color={Colors.accent} style={{ marginBottom: 4 }} />
-                <Text style={{ fontFamily: Fonts.bodySemiBold, fontSize: FontSizes.sm, color: Colors.text }}>Summary</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push('/trip/review' as any); }}
-                style={{ flex: 1, backgroundColor: Colors.white, borderRadius: BorderRadius.md, padding: 16, alignItems: 'center', ...Shadows.card }}
-              >
-                <Ionicons name="people-outline" size={24} color={Colors.accent} style={{ marginBottom: 4 }} />
-                <Text style={{ fontFamily: Fonts.bodySemiBold, fontSize: FontSizes.sm, color: Colors.text }}>Settle Up</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push('/trip/review' as any); }}
-                style={{ flex: 1, backgroundColor: Colors.white, borderRadius: BorderRadius.md, padding: 16, alignItems: 'center', ...Shadows.card }}
-              >
-                <Ionicons name="images-outline" size={24} color={Colors.accent} style={{ marginBottom: 4 }} />
-                <Text style={{ fontFamily: Fonts.bodySemiBold, fontSize: FontSizes.sm, color: Colors.text }}>Memories</Text>
-              </Pressable>
+            {/* Quick Actions Grid */}
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: Spacing.lg }}>
+              {[
+                { icon: 'swap-horizontal' as const, label: 'Settle', desc: 'Split expenses', gradient: ['#5E8A5A', '#3D6B39'] as const },
+                { icon: 'analytics' as const, label: 'AI Report', desc: 'Trip insights', gradient: ['#B07A50', '#8B5E3C'] as const },
+                { icon: 'sparkles' as const, label: 'Create', desc: 'Reel & Blog', gradient: ['#833AB4', '#FD1D1D'] as const },
+                { icon: 'podium' as const, label: 'Board', desc: 'Leaderboard', gradient: ['#E67E22', '#D35400'] as const },
+                { icon: 'map' as const, label: 'Map', desc: 'Your journey', gradient: ['#1a535c', '#0b2d30'] as const },
+                { icon: 'share-social' as const, label: 'Share', desc: 'Share trip', gradient: ['#4A8BA8', '#2C6E84'] as const },
+              ].map((action, i) => (
+                <Pressable
+                  key={action.label}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                    if (action.label === 'Share') {
+                      Share.share({ message: `Check out my ${trip.name} trip to ${trip.destination}! Planned with TraiMate.` }).catch(() => {});
+                    } else {
+                      router.push('/trip/review' as any);
+                    }
+                  }}
+                  style={({ pressed }) => [{
+                    width: (SCREEN_WIDTH - Spacing.xl * 2 - 10) / 2,
+                    borderRadius: BorderRadius.md,
+                    overflow: 'hidden',
+                    ...Shadows.card,
+                  }, pressed && { opacity: 0.85, transform: [{ scale: 0.97 }] }]}
+                >
+                  <LinearGradient
+                    colors={[action.gradient[0], action.gradient[1]]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={{ padding: Spacing.md, height: 90, justifyContent: 'space-between' }}
+                  >
+                    <Ionicons name={action.icon} size={24} color="rgba(255,255,255,0.9)" />
+                    <View>
+                      <Text style={{ fontFamily: Fonts.bodySemiBold, fontSize: FontSizes.md, color: Colors.white }}>{action.label}</Text>
+                      <Text style={{ fontFamily: Fonts.body, fontSize: 11, color: 'rgba(255,255,255,0.7)' }}>{action.desc}</Text>
+                    </View>
+                  </LinearGradient>
+                </Pressable>
+              ))}
             </View>
 
+            {/* Open Full Recap CTA */}
             <Pressable
               onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push('/trip/review' as any); }}
-              style={{ borderRadius: BorderRadius.lg, overflow: 'hidden', marginBottom: Spacing.xl }}
+              style={{ borderRadius: BorderRadius.lg, overflow: 'hidden', marginBottom: Spacing.xl, ...Shadows.card }}
             >
               <LinearGradient
-                colors={[Colors.accent, Colors.accentDark]}
+                colors={['#5E8A5A', '#3D6B39']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
                 style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 18, gap: 8 }}
               >
-                <Text style={{ fontFamily: Fonts.bodySemiBold, fontSize: FontSizes.md, color: Colors.white }}>View Full Trip Review</Text>
+                <Ionicons name="sparkles" size={20} color={Colors.white} />
+                <Text style={{ fontFamily: Fonts.bodySemiBold, fontSize: FontSizes.md, color: Colors.white }}>Open Full Recap</Text>
                 <Ionicons name="arrow-forward" size={18} color={Colors.white} />
               </LinearGradient>
             </Pressable>

@@ -7,293 +7,818 @@ import {
   Pressable,
   Animated,
   Dimensions,
+  Share,
+  Modal,
+  Alert,
+  LayoutAnimation,
+  Platform,
+  UIManager,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
+import { Ionicons } from '@expo/vector-icons';
 import { Colors, Fonts, FontSizes, Spacing, BorderRadius, Shadows } from '../../src/constants/theme';
+import { CATEGORY_IONICONS, CATEGORY_COLORS } from '../../src/constants/aiData';
+import {
+  calculateSettlements,
+  generateTripReport,
+  generateLeaderboard,
+  generateBlogPost,
+  generateThread,
+  generateMapLocations,
+  estimateDistance,
+  SAMPLE_EXPENSES,
+  SAMPLE_MEMBERS,
+  SAMPLE_JOURNALS,
+  SHARE_FORMATS,
+  type TripExpense,
+  type TripMember,
+  type JournalEntry,
+  type Settlement,
+  type MemberBalance,
+  type TripReportData,
+  type LeaderboardEntry,
+  type ShareFormat,
+  type MapLocation,
+} from '../../src/utils/reviewHelpers';
+
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-// ──────────────────────────────────────────────
-// Sub-tab definitions
-// ──────────────────────────────────────────────
+// ── Sub-tabs ───────────────────────────────────────────────────────────
 
 const SUB_TABS = [
-  { key: 'summary', label: 'Summary' },
-  { key: 'budget', label: 'Budget Variance' },
-  { key: 'settlements', label: 'Settlements' },
-  { key: 'memories', label: 'Memories' },
+  { key: 'settle', label: 'Settle', icon: 'swap-horizontal' as const },
+  { key: 'report', label: 'AI Report', icon: 'analytics' as const },
+  { key: 'create', label: 'Create', icon: 'sparkles' as const },
+  { key: 'leaderboard', label: 'Board', icon: 'podium' as const },
+  { key: 'map', label: 'Map', icon: 'map' as const },
 ] as const;
 
 type SubTab = (typeof SUB_TABS)[number]['key'];
 
-// ──────────────────────────────────────────────
-// Sample data
-// ──────────────────────────────────────────────
+// ── Simulated itinerary for map ────────────────────────────────────────
 
-const TRIP_NAME = 'Goa Adventure';
-const TRIP_DAYS = 5;
-
-const CATEGORY_COLORS: Record<string, string> = {
-  food: '#E67E22',
-  transport: '#3498DB',
-  hotel: '#8E44AD',
-  activity: '#27AE60',
-  shopping: '#E74C3C',
-};
-
-const CATEGORY_META: Record<string, { emoji: string; label: string }> = {
-  food: { emoji: '🍕', label: 'Food & Dining' },
-  transport: { emoji: '🚕', label: 'Transport' },
-  hotel: { emoji: '🏨', label: 'Hotel & Stay' },
-  activity: { emoji: '🎟️', label: 'Activities' },
-  shopping: { emoji: '🛍️', label: 'Shopping' },
-};
-
-const EXPENSE_BREAKDOWN = [
-  { category: 'food', amount: 9200 },
-  { category: 'transport', amount: 3400 },
-  { category: 'hotel', amount: 22000 },
-  { category: 'activity', amount: 5800 },
-  { category: 'shopping', amount: 4600 },
+const SAMPLE_ITINERARY = [
+  {
+    dayNumber: 1,
+    items: [
+      { title: 'Airport Arrival', time: '14:00', type: 'transport', location: 'Airport Terminal' },
+      { title: 'Hotel Check-in', time: '16:00', type: 'hotel', location: 'Beach Resort' },
+      { title: 'Welcome Dinner', time: '19:00', type: 'food', location: 'Seaside Restaurant' },
+    ],
+  },
+  {
+    dayNumber: 2,
+    items: [
+      { title: 'Temple Visit', time: '08:00', type: 'culture', location: 'Ancient Temple' },
+      { title: 'Local Market Lunch', time: '12:30', type: 'food', location: 'Night Market' },
+      { title: 'Scooter Exploration', time: '15:00', type: 'activity', location: 'Coastal Road' },
+      { title: 'Sunset Point', time: '17:30', type: 'sightseeing', location: 'Cliff Viewpoint' },
+    ],
+  },
+  {
+    dayNumber: 3,
+    items: [
+      { title: 'Spa Morning', time: '09:00', type: 'wellness', location: 'Wellness Spa' },
+      { title: 'Beach Club', time: '14:00', type: 'activity', location: 'South Beach Club' },
+      { title: 'Cocktails & Chill', time: '18:00', type: 'nightlife', location: 'Rooftop Bar' },
+    ],
+  },
+  {
+    dayNumber: 4,
+    items: [
+      { title: 'Sunrise Cruise', time: '06:00', type: 'activity', location: 'Marina Dock' },
+      { title: 'Brunch', time: '10:00', type: 'food', location: 'Garden Cafe' },
+      { title: 'Souvenir Shopping', time: '14:00', type: 'shopping', location: 'Artisan Village' },
+    ],
+  },
+  {
+    dayNumber: 5,
+    items: [
+      { title: 'Farewell Breakfast', time: '08:00', type: 'food', location: 'Hotel Restaurant' },
+      { title: 'Departure', time: '12:00', type: 'transport', location: 'Airport Terminal' },
+    ],
+  },
 ];
 
-const TOTAL_SPENT = EXPENSE_BREAKDOWN.reduce((s, e) => s + e.amount, 0);
-
-const BUDGET_DATA = [
-  { category: 'Flights', emoji: '✈️', planned: 15000, actual: 14200 },
-  { category: 'Hotel', emoji: '🏨', planned: 20000, actual: 22000 },
-  { category: 'Food', emoji: '🍕', planned: 8000, actual: 9200 },
-  { category: 'Transport', emoji: '🚕', planned: 3000, actual: 3400 },
-  { category: 'Activities', emoji: '🎟️', planned: 5000, actual: 5800 },
-  { category: 'Shopping', emoji: '🛍️', planned: 4000, actual: 4600 },
-];
-
-const MEMBERS = [
-  { name: 'You', initial: 'Y', color: Colors.accent, paid: 18500 },
-  { name: 'Alex', initial: 'A', color: Colors.sage, paid: 12400 },
-  { name: 'Sam', initial: 'S', color: '#3498DB', paid: 8600 },
-  { name: 'Jordan', initial: 'J', color: '#8E44AD', paid: 5500 },
-];
-
-const TOTAL_PAID = MEMBERS.reduce((s, m) => s + m.paid, 0);
-const PER_PERSON = TOTAL_PAID / MEMBERS.length;
-
-const SETTLEMENTS = [
-  { from: 'Jordan', to: 'You', amount: 5750 },
-  { from: 'Sam', to: 'You', amount: 2650 },
-  { from: 'Jordan', to: 'Alex', amount: 1150 },
-];
-
-const DAYS_DATA = [
-  { day: 1, label: 'Day 1 — Arrival', planned: 3, actual: 4, expenses: 5, journal: 'Landed in Goa around noon. The beach vibe hit instantly — warm breeze, salty air...' },
-  { day: 2, label: 'Day 2 — Beaches', planned: 5, actual: 5, expenses: 7, journal: 'Spent the morning at Anjuna Beach. The flea market was vibrant and chaotic...' },
-  { day: 3, label: 'Day 3 — Old Goa', planned: 4, actual: 3, expenses: 4, journal: null },
-  { day: 4, label: 'Day 4 — Spice Plantation', planned: 3, actual: 4, expenses: 6, journal: 'The spice plantation tour was unexpectedly one of the best parts of the trip...' },
-  { day: 5, label: 'Day 5 — Departure', planned: 2, actual: 2, expenses: 3, journal: null },
-];
-
-const TOTAL_EXPENSES_COUNT = DAYS_DATA.reduce((s, d) => s + d.expenses, 0);
-const TOTAL_JOURNALS = DAYS_DATA.filter((d) => d.journal).length;
-
-// ──────────────────────────────────────────────
-// Component
-// ──────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════
+// COMPONENT
+// ══════════════════════════════════════════════════════════════════════
 
 export default function ReviewScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const [activeTab, setActiveTab] = useState<SubTab>('summary');
+  const [activeTab, setActiveTab] = useState<SubTab>('settle');
 
-  // Entrance animation
+  // ── Data (simulated — in production, pass via params or context) ────
+  const expenses = SAMPLE_EXPENSES;
+  const members = SAMPLE_MEMBERS;
+  const journals = SAMPLE_JOURNALS;
+  const destination = 'Goa';
+  const dayCount = 5;
+  const tripName = 'Goa Adventure';
+
+  // ── Computed data ──────────────────────────────────────────────────
+  const settlementData = calculateSettlements(expenses, members);
+  const reportData = generateTripReport(expenses, members, dayCount, destination);
+  const leaderboard = generateLeaderboard(expenses, members, journals);
+  const mapLocations = generateMapLocations(SAMPLE_ITINERARY);
+  const totalDistance = estimateDistance(mapLocations.length);
+
+  // ── State ──────────────────────────────────────────────────────────
+  const [settledMembers, setSettledMembers] = useState<Set<string>>(new Set());
+  const [showBlogModal, setShowBlogModal] = useState(false);
+  const [showThreadModal, setShowThreadModal] = useState(false);
+  const [selectedFormat, setSelectedFormat] = useState<string | null>(null);
+  const [showReelModal, setShowReelModal] = useState(false);
+  const [reelProgress, setReelProgress] = useState(0);
+  const [expandedInsight, setExpandedInsight] = useState<number | null>(null);
+
+  // ── Animations ─────────────────────────────────────────────────────
   const contentOpacity = useRef(new Animated.Value(0)).current;
   const contentTranslateY = useRef(new Animated.Value(18)).current;
+  const tabOpacity = useRef(new Animated.Value(1)).current;
+  const tabTranslateY = useRef(new Animated.Value(0)).current;
+  const scoreAnim = useRef(new Animated.Value(0)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     Animated.parallel([
       Animated.timing(contentOpacity, { toValue: 1, duration: 500, useNativeDriver: true }),
       Animated.timing(contentTranslateY, { toValue: 0, duration: 500, useNativeDriver: true }),
     ]).start();
+
+    // Pulse animation for score
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1.05, duration: 1200, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 1200, useNativeDriver: true }),
+      ]),
+    ).start();
   }, []);
 
-  // Re-animate on tab switch
-  const tabOpacity = useRef(new Animated.Value(1)).current;
-  const tabTranslateY = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (activeTab === 'report') {
+      scoreAnim.setValue(0);
+      Animated.spring(scoreAnim, {
+        toValue: 1,
+        tension: 40,
+        friction: 8,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [activeTab]);
 
   const switchTab = (tab: SubTab) => {
     if (tab === activeTab) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
-    // Fade out, switch, fade in
     Animated.parallel([
-      Animated.timing(tabOpacity, { toValue: 0, duration: 120, useNativeDriver: true }),
-      Animated.timing(tabTranslateY, { toValue: 10, duration: 120, useNativeDriver: true }),
+      Animated.timing(tabOpacity, { toValue: 0, duration: 100, useNativeDriver: true }),
+      Animated.timing(tabTranslateY, { toValue: 8, duration: 100, useNativeDriver: true }),
     ]).start(() => {
       setActiveTab(tab);
-      tabTranslateY.setValue(-10);
+      tabTranslateY.setValue(-8);
       Animated.parallel([
-        Animated.timing(tabOpacity, { toValue: 1, duration: 250, useNativeDriver: true }),
-        Animated.timing(tabTranslateY, { toValue: 0, duration: 250, useNativeDriver: true }),
+        Animated.timing(tabOpacity, { toValue: 1, duration: 220, useNativeDriver: true }),
+        Animated.timing(tabTranslateY, { toValue: 0, duration: 220, useNativeDriver: true }),
       ]).start();
     });
   };
 
-  // ──────────────────────────────────────────
-  // Summary Tab
-  // ──────────────────────────────────────────
+  // ── Handlers ───────────────────────────────────────────────────────
 
-  const renderSummary = () => {
-    const maxAmount = Math.max(...EXPENSE_BREAKDOWN.map((e) => e.amount));
+  const handleSettle = (memberName: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setSettledMembers(prev => {
+      const next = new Set(prev);
+      if (next.has(memberName)) next.delete(memberName);
+      else next.add(memberName);
+      return next;
+    });
+  };
+
+  const handleShareReport = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      await Share.share({
+        title: `${tripName} — Trip Recap`,
+        message: `Just wrapped up ${dayCount} amazing days in ${destination}! Total spend: ₹${reportData.totalSpent.toLocaleString('en-IN')} across ${expenses.length} expenses with ${members.length} friends. Trip score: ${reportData.tripScore}/100. Planned with TraiMate.`,
+      });
+    } catch {}
+  };
+
+  const handleFormatSelect = (format: ShareFormat) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setSelectedFormat(format.key);
+
+    if (format.key === 'blog') {
+      setShowBlogModal(true);
+    } else if (format.key === 'thread') {
+      setShowThreadModal(true);
+    } else if (format.key === 'reel') {
+      setShowReelModal(true);
+      simulateReelGeneration();
+    } else if (format.key === 'story') {
+      Alert.alert(
+        'Story Generated',
+        'Your Instagram Story card has been created with trip highlights, stats, and photos. Ready to share!',
+        [
+          { text: 'Share Now', onPress: () => handleShareReport() },
+          { text: 'Later', style: 'cancel' },
+        ],
+      );
+    }
+  };
+
+  const simulateReelGeneration = () => {
+    setReelProgress(0);
+    const steps = [10, 25, 45, 65, 80, 95, 100];
+    steps.forEach((p, i) => {
+      setTimeout(() => setReelProgress(p), (i + 1) * 600);
+    });
+  };
+
+  const handleShareBlog = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const blog = generateBlogPost(destination, dayCount, journals, reportData.highlights);
+    try {
+      await Share.share({ title: `${dayCount} Days in ${destination}`, message: blog });
+    } catch {}
+  };
+
+  const handleShareThread = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const tweets = generateThread(destination, dayCount, journals, reportData.totalSpent);
+    try {
+      await Share.share({ title: `${destination} Thread`, message: tweets.join('\n\n---\n\n') });
+    } catch {}
+  };
+
+  // ══════════════════════════════════════════════════════════════════
+  // SETTLE TAB
+  // ══════════════════════════════════════════════════════════════════
+
+  const renderSettle = () => {
+    const allSettled = settledMembers.size >= settlementData.settlements.length;
 
     return (
       <>
-        {/* Trip Analysis card */}
-        <View style={[styles.card, { marginBottom: Spacing.lg }]}>
-          <View style={styles.analysisHeader}>
-            <Text style={styles.analysisEmoji}>🎉</Text>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.analysisTitle}>Trip Analysis</Text>
-              <Text style={styles.analysisSubtitle}>
-                {TRIP_NAME} · {TRIP_DAYS} days
-              </Text>
-            </View>
-          </View>
-          <Text style={styles.analysisSummary}>
-            Your group spent across {EXPENSE_BREAKDOWN.length} categories over {TRIP_DAYS} unforgettable days.
-          </Text>
-        </View>
-
-        {/* Total Spent card */}
-        <View style={[styles.gradientCardWrapper, { marginBottom: Spacing.xl }]}>
+        {/* Per Person Share */}
+        <View style={[styles.gradientCardWrapper, { marginBottom: Spacing.lg }]}>
           <LinearGradient
-            colors={[Colors.accent, Colors.accentDark]}
+            colors={['#5E8A5A', '#3D6B39']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
-            style={styles.totalGradient}
+            style={styles.settleHeroGradient}
           >
-            <Text style={styles.totalLabel}>Total Spent</Text>
-            <Text style={styles.totalAmount}>₹{TOTAL_SPENT.toLocaleString('en-IN')}</Text>
-            <Text style={styles.totalSub}>
-              {TOTAL_EXPENSES_COUNT} expenses · {MEMBERS.length} travellers
+            <View style={styles.settleHeroTop}>
+              <Ionicons name="wallet-outline" size={28} color="rgba(255,255,255,0.8)" />
+              <Text style={styles.settleHeroLabel}>Per Person Share</Text>
+            </View>
+            <Text style={styles.settleHeroAmount}>
+              ₹{settlementData.perPerson.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+            </Text>
+            <Text style={styles.settleHeroSub}>
+              Total ₹{settlementData.totalSpent.toLocaleString('en-IN')} ÷ {members.length} travellers
             </Text>
           </LinearGradient>
         </View>
 
-        {/* Category Breakdown */}
-        <Text style={styles.sectionTitle}>Category Breakdown</Text>
-        <View style={[styles.card, { marginBottom: Spacing.lg }]}>
-          {EXPENSE_BREAKDOWN.map((item, index) => {
-            const meta = CATEGORY_META[item.category];
-            const color = CATEGORY_COLORS[item.category];
-            const pct = (item.amount / TOTAL_SPENT) * 100;
-            const barWidth = (item.amount / maxAmount) * 100;
-
-            return (
-              <View key={item.category} style={[styles.categoryRow, index < EXPENSE_BREAKDOWN.length - 1 && styles.categoryRowBorder]}>
-                <View style={styles.categoryHeader}>
-                  <View style={styles.categoryLeft}>
-                    <Text style={styles.categoryEmoji}>{meta.emoji}</Text>
-                    <Text style={styles.categoryName}>{meta.label}</Text>
-                  </View>
-                  <View style={styles.categoryRight}>
-                    <Text style={styles.categoryAmount}>₹{item.amount.toLocaleString('en-IN')}</Text>
-                    <Text style={[styles.categoryPct, { color }]}>{pct.toFixed(1)}%</Text>
-                  </View>
-                </View>
-                <View style={styles.progressTrack}>
-                  <View style={[styles.progressBar, { width: `${barWidth}%`, backgroundColor: color }]} />
-                </View>
-              </View>
-            );
-          })}
+        {/* Members */}
+        <View style={styles.sectionRow}>
+          <Ionicons name="people-outline" size={18} color={Colors.sage} />
+          <Text style={styles.sectionTitle}>Who Paid What</Text>
         </View>
+
+        {settlementData.balances.map((member) => {
+          const isPositive = member.balance >= 0;
+          return (
+            <View key={member.name} style={[styles.card, styles.memberCard]}>
+              <View style={[styles.memberAvatar, { backgroundColor: member.color }]}>
+                <Text style={styles.memberAvatarText}>{member.initial}</Text>
+              </View>
+              <View style={styles.memberInfo}>
+                <Text style={styles.memberName}>{member.name}</Text>
+                <Text style={styles.memberPaid}>Paid ₹{member.paid.toLocaleString('en-IN')}</Text>
+              </View>
+              <View style={styles.memberBalanceCol}>
+                <View style={[styles.balanceBadge, { backgroundColor: isPositive ? 'rgba(94,138,90,0.12)' : 'rgba(199,84,80,0.12)' }]}>
+                  <Ionicons
+                    name={isPositive ? 'arrow-up' : 'arrow-down'}
+                    size={12}
+                    color={isPositive ? Colors.success : Colors.error}
+                  />
+                  <Text style={[styles.memberBalanceAmount, { color: isPositive ? Colors.success : Colors.error }]}>
+                    ₹{Math.abs(member.balance).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                  </Text>
+                </View>
+                <Text style={[styles.memberBalanceLabel, { color: isPositive ? Colors.success : Colors.error }]}>
+                  {isPositive ? 'gets back' : 'owes'}
+                </Text>
+              </View>
+            </View>
+          );
+        })}
+
+        {/* Settlements */}
+        <View style={[styles.sectionRow, { marginTop: Spacing.lg }]}>
+          <Ionicons name="swap-horizontal-outline" size={18} color={Colors.sage} />
+          <Text style={styles.sectionTitle}>Settlements</Text>
+        </View>
+
+        {settlementData.settlements.map((s, index) => {
+          const isSettled = settledMembers.has(`${s.from}-${s.to}`);
+          return (
+            <Pressable
+              key={index}
+              onPress={() => handleSettle(`${s.from}-${s.to}`)}
+              style={[styles.card, styles.settlementCard, isSettled && styles.settlementSettled]}
+            >
+              <View style={styles.settlementContent}>
+                <View style={styles.settlementFromTo}>
+                  <View style={[styles.settlementDot, { backgroundColor: Colors.error }]} />
+                  <Text style={styles.settlementName}>{s.from}</Text>
+                  <View style={styles.settlementArrowWrap}>
+                    <Ionicons name="arrow-forward" size={16} color={Colors.textMuted} />
+                  </View>
+                  <View style={[styles.settlementDot, { backgroundColor: Colors.success }]} />
+                  <Text style={styles.settlementName}>{s.to}</Text>
+                </View>
+                <Text style={[styles.settlementAmount, isSettled && { color: Colors.textMuted }]}>
+                  ₹{s.amount.toLocaleString('en-IN')}
+                </Text>
+              </View>
+              <View style={[styles.settleCheckbox, isSettled && styles.settleCheckboxActive]}>
+                {isSettled && <Ionicons name="checkmark" size={14} color={Colors.white} />}
+              </View>
+            </Pressable>
+          );
+        })}
+
+        {/* All Settled Badge */}
+        {allSettled && (
+          <View style={styles.allSettledCard}>
+            <LinearGradient
+              colors={['#5E8A5A', '#3D6B39']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.allSettledGradient}
+            >
+              <Ionicons name="checkmark-circle" size={32} color={Colors.white} />
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={styles.allSettledTitle}>All Settled!</Text>
+                <Text style={styles.allSettledSub}>Everyone is square. No pending payments.</Text>
+              </View>
+            </LinearGradient>
+          </View>
+        )}
       </>
     );
   };
 
-  // ──────────────────────────────────────────
-  // Budget Variance Tab
-  // ──────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+  // AI REPORT TAB
+  // ══════════════════════════════════════════════════════════════════
 
-  const renderBudgetVariance = () => {
-    const totalPlanned = BUDGET_DATA.reduce((s, b) => s + b.planned, 0);
-    const totalActual = BUDGET_DATA.reduce((s, b) => s + b.actual, 0);
-    const totalVariance = totalActual - totalPlanned;
+  const renderReport = () => {
+    const maxCatAmount = Math.max(...reportData.categoryBreakdown.map(c => c.amount), 1);
 
     return (
       <>
-        {/* Summary overview */}
-        <View style={styles.budgetOverviewRow}>
-          <View style={[styles.budgetStatCard, { flex: 1 }]}>
-            <Text style={styles.budgetStatLabel}>Planned</Text>
-            <Text style={styles.budgetStatValue}>₹{totalPlanned.toLocaleString('en-IN')}</Text>
+        {/* Trip Score Card */}
+        <Animated.View style={[styles.tripScoreCard, { transform: [{ scale: pulseAnim }] }]}>
+          <LinearGradient
+            colors={['#B07A50', '#8B5E3C']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.tripScoreGradient}
+          >
+            <View style={styles.tripScoreInner}>
+              <View style={styles.tripScoreCircle}>
+                <Text style={styles.tripScoreNumber}>{reportData.tripScore}</Text>
+                <Text style={styles.tripScoreOf}>/100</Text>
+              </View>
+              <View style={styles.tripScoreText}>
+                <Text style={styles.tripScoreLabel}>Trip Score</Text>
+                <Text style={styles.tripScoreDesc}>
+                  {reportData.tripScore >= 80 ? 'Legendary trip!' :
+                   reportData.tripScore >= 60 ? 'Great adventure!' :
+                   'Solid trip!'}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.tripScoreStats}>
+              <View style={styles.tripScoreStat}>
+                <Text style={styles.tripScoreStatNum}>{dayCount}</Text>
+                <Text style={styles.tripScoreStatLabel}>Days</Text>
+              </View>
+              <View style={styles.tripScoreStatDivider} />
+              <View style={styles.tripScoreStat}>
+                <Text style={styles.tripScoreStatNum}>{expenses.length}</Text>
+                <Text style={styles.tripScoreStatLabel}>Expenses</Text>
+              </View>
+              <View style={styles.tripScoreStatDivider} />
+              <View style={styles.tripScoreStat}>
+                <Text style={styles.tripScoreStatNum}>{members.length}</Text>
+                <Text style={styles.tripScoreStatLabel}>Mates</Text>
+              </View>
+            </View>
+          </LinearGradient>
+        </Animated.View>
+
+        {/* Savings Callout */}
+        {reportData.savingsVsSimilar > 0 && (
+          <View style={styles.savingsCard}>
+            <View style={styles.savingsIconWrap}>
+              <Ionicons name="trending-down" size={24} color={Colors.success} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.savingsTitle}>You saved ₹{reportData.savingsVsSimilar.toLocaleString('en-IN')}</Text>
+              <Text style={styles.savingsDesc}>compared to similar trips to {destination}</Text>
+            </View>
           </View>
-          <View style={{ width: Spacing.sm }} />
-          <View style={[styles.budgetStatCard, { flex: 1 }]}>
-            <Text style={styles.budgetStatLabel}>Actual</Text>
-            <Text style={styles.budgetStatValue}>₹{totalActual.toLocaleString('en-IN')}</Text>
-          </View>
-          <View style={{ width: Spacing.sm }} />
-          <View style={[styles.budgetStatCard, { flex: 1, borderColor: totalVariance > 0 ? Colors.error : Colors.success, borderWidth: 1.5 }]}>
-            <Text style={styles.budgetStatLabel}>Variance</Text>
-            <Text style={[styles.budgetStatValue, { color: totalVariance > 0 ? Colors.error : Colors.success }]}>
-              {totalVariance > 0 ? '+' : ''}₹{totalVariance.toLocaleString('en-IN')}
-            </Text>
-          </View>
+        )}
+
+        {/* Spending Breakdown */}
+        <View style={styles.sectionRow}>
+          <Ionicons name="pie-chart-outline" size={18} color={Colors.sage} />
+          <Text style={styles.sectionTitle}>Spending Breakdown</Text>
         </View>
 
-        {/* Table */}
-        <View style={[styles.card, { marginTop: Spacing.lg, paddingHorizontal: 0, paddingVertical: 0, overflow: 'hidden' }]}>
-          {/* Table header */}
-          <View style={styles.tableHeaderRow}>
-            <Text style={[styles.tableHeaderCell, { flex: 2 }]}>Category</Text>
-            <Text style={[styles.tableHeaderCell, { flex: 1.3, textAlign: 'right' }]}>Planned</Text>
-            <Text style={[styles.tableHeaderCell, { flex: 1.3, textAlign: 'right' }]}>Actual</Text>
-            <Text style={[styles.tableHeaderCell, { flex: 1.3, textAlign: 'right' }]}>Variance</Text>
-          </View>
+        <View style={styles.totalSpentRow}>
+          <Text style={styles.totalSpentLabel}>Total Spent</Text>
+          <Text style={styles.totalSpentAmount}>₹{reportData.totalSpent.toLocaleString('en-IN')}</Text>
+        </View>
 
-          {/* Table rows */}
-          {BUDGET_DATA.map((row, index) => {
-            const variance = row.actual - row.planned;
-            const isOver = variance > 0;
-            const isUnder = variance < 0;
+        <View style={styles.card}>
+          {reportData.categoryBreakdown.map((cat, index) => {
+            const catLabel = cat.category.charAt(0).toUpperCase() + cat.category.slice(1);
+            const barWidth = (cat.amount / maxCatAmount) * 100;
 
             return (
-              <View
-                key={row.category}
-                style={[
-                  styles.tableRow,
-                  index % 2 === 0 && { backgroundColor: '#FDFBF9' },
-                  index === BUDGET_DATA.length - 1 && { borderBottomWidth: 0 },
-                ]}
-              >
-                <View style={[styles.tableCellRow, { flex: 2 }]}>
-                  <Text style={styles.tableCellEmoji}>{row.emoji}</Text>
-                  <Text style={styles.tableCellCategory}>{row.category}</Text>
-                </View>
-                <Text style={[styles.tableCellValue, { flex: 1.3 }]}>₹{row.planned.toLocaleString('en-IN')}</Text>
-                <Text style={[styles.tableCellValue, { flex: 1.3 }]}>₹{row.actual.toLocaleString('en-IN')}</Text>
-                <View style={[styles.varianceCell, { flex: 1.3 }]}>
-                  <View style={[styles.varianceBadge, { backgroundColor: isOver ? '#FDECEC' : isUnder ? '#ECF8EC' : Colors.background }]}>
-                    <Text style={[styles.varianceText, { color: isOver ? Colors.error : isUnder ? Colors.success : Colors.textSecondary }]}>
-                      {isOver ? '+' : ''}₹{Math.abs(variance).toLocaleString('en-IN')}
-                    </Text>
+              <View key={cat.category} style={[styles.categoryRow, index < reportData.categoryBreakdown.length - 1 && styles.categoryRowBorder]}>
+                <View style={styles.categoryHeader}>
+                  <View style={styles.categoryLeft}>
+                    <View style={[styles.categoryIconCircle, { backgroundColor: cat.color + '1A' }]}>
+                      <Ionicons name={cat.icon as any} size={16} color={cat.color} />
+                    </View>
+                    <Text style={styles.categoryName}>{catLabel}</Text>
                   </View>
+                  <View style={styles.categoryRight}>
+                    <Text style={styles.categoryAmount}>₹{cat.amount.toLocaleString('en-IN')}</Text>
+                    <Text style={[styles.categoryPct, { color: cat.color }]}>{cat.pct.toFixed(0)}%</Text>
+                  </View>
+                </View>
+                <View style={styles.progressTrack}>
+                  <View style={[styles.progressBar, { width: `${barWidth}%`, backgroundColor: cat.color }]} />
                 </View>
               </View>
             );
           })}
         </View>
 
-        {/* Insight */}
-        <View style={[styles.card, { marginTop: Spacing.lg, flexDirection: 'row', alignItems: 'center', gap: 12 }]}>
-          <Text style={{ fontSize: 28 }}>📊</Text>
+        {/* Highlights */}
+        <View style={[styles.sectionRow, { marginTop: Spacing.lg }]}>
+          <Ionicons name="star-outline" size={18} color={Colors.sage} />
+          <Text style={styles.sectionTitle}>Trip Highlights</Text>
+        </View>
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ gap: Spacing.md, paddingRight: Spacing.md }}
+        >
+          {reportData.highlights.map((h, i) => (
+            <View key={i} style={styles.highlightCard}>
+              <View style={[styles.highlightIcon, { backgroundColor: Colors.sage + '1A' }]}>
+                <Ionicons name={h.icon as any} size={20} color={Colors.sage} />
+              </View>
+              <Text style={styles.highlightTitle}>{h.title}</Text>
+              <Text style={styles.highlightDesc} numberOfLines={2}>{h.description}</Text>
+              {h.metric && (
+                <View style={styles.highlightMetric}>
+                  <Text style={styles.highlightMetricText}>{h.metric}</Text>
+                </View>
+              )}
+            </View>
+          ))}
+        </ScrollView>
+
+        {/* Insights */}
+        <View style={[styles.sectionRow, { marginTop: Spacing.lg }]}>
+          <Ionicons name="bulb-outline" size={18} color={Colors.sage} />
+          <Text style={styles.sectionTitle}>AI Insights</Text>
+        </View>
+
+        {reportData.insights.map((insight, i) => (
+          <Pressable
+            key={i}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setExpandedInsight(expandedInsight === i ? null : i);
+            }}
+            style={styles.insightCard}
+          >
+            <View style={[styles.insightAccent, { backgroundColor: insight.color }]} />
+            <View style={[styles.insightIconWrap, { backgroundColor: insight.color + '1A' }]}>
+              <Ionicons name={insight.icon as any} size={20} color={insight.color} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.insightTitle}>{insight.title}</Text>
+              <Text style={styles.insightDetail} numberOfLines={expandedInsight === i ? undefined : 1}>
+                {insight.detail}
+              </Text>
+            </View>
+            <Ionicons name={expandedInsight === i ? 'chevron-up' : 'chevron-down'} size={16} color={Colors.textMuted} />
+          </Pressable>
+        ))}
+
+        {/* Tips for Next Trip */}
+        <View style={[styles.sectionRow, { marginTop: Spacing.lg }]}>
+          <Ionicons name="rocket-outline" size={18} color={Colors.sage} />
+          <Text style={styles.sectionTitle}>Pro Tips for Next Time</Text>
+        </View>
+
+        <View style={styles.card}>
+          {reportData.nextTripTips.map((tip, i) => (
+            <View key={i} style={[styles.tipRow, i < reportData.nextTripTips.length - 1 && styles.tipRowBorder]}>
+              <View style={styles.tipNumber}>
+                <Text style={styles.tipNumberText}>{i + 1}</Text>
+              </View>
+              <Text style={styles.tipText}>{tip}</Text>
+            </View>
+          ))}
+        </View>
+
+        {/* Share Report CTA */}
+        <Pressable onPress={handleShareReport} style={styles.shareReportBtn}>
+          <LinearGradient
+            colors={[Colors.accent, Colors.accentDark]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.shareReportGradient}
+          >
+            <Ionicons name="share-outline" size={20} color={Colors.white} />
+            <Text style={styles.shareReportText}>Share Trip Report</Text>
+          </LinearGradient>
+        </Pressable>
+      </>
+    );
+  };
+
+  // ══════════════════════════════════════════════════════════════════
+  // CREATE TAB (Story / Reel / Blog / Thread)
+  // ══════════════════════════════════════════════════════════════════
+
+  const renderCreate = () => (
+    <>
+      {/* Hero */}
+      <View style={styles.createHero}>
+        <LinearGradient
+          colors={['#1a1a2e', '#16213e']}
+          style={styles.createHeroGradient}
+        >
+          <Ionicons name="sparkles" size={36} color="#FFC947" />
+          <Text style={styles.createHeroTitle}>Share Your Trip</Text>
+          <Text style={styles.createHeroSub}>
+            AI transforms your journey into shareable content
+          </Text>
+        </LinearGradient>
+      </View>
+
+      {/* Format Cards */}
+      <View style={styles.sectionRow}>
+        <Ionicons name="color-wand-outline" size={18} color={Colors.sage} />
+        <Text style={styles.sectionTitle}>Choose a Format</Text>
+      </View>
+
+      {SHARE_FORMATS.map((format, i) => (
+        <Pressable
+          key={format.key}
+          onPress={() => handleFormatSelect(format)}
+          style={({ pressed }) => [styles.formatCard, pressed && styles.formatCardPressed]}
+        >
+          <LinearGradient
+            colors={[format.gradient[0], format.gradient[1]]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.formatIconGradient}
+          >
+            <Ionicons name={format.icon as any} size={24} color={Colors.white} />
+          </LinearGradient>
+          <View style={styles.formatContent}>
+            <Text style={styles.formatLabel}>{format.label}</Text>
+            <Text style={styles.formatDesc}>{format.description}</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={Colors.textMuted} />
+        </Pressable>
+      ))}
+
+      {/* How it works */}
+      <View style={[styles.sectionRow, { marginTop: Spacing.lg }]}>
+        <Ionicons name="help-circle-outline" size={18} color={Colors.sage} />
+        <Text style={styles.sectionTitle}>How it Works</Text>
+      </View>
+
+      <View style={styles.card}>
+        {[
+          { step: 1, icon: 'finger-print', text: 'Pick a format above' },
+          { step: 2, icon: 'sparkles', text: 'AI compiles your photos, journal & highlights' },
+          { step: 3, icon: 'eye', text: 'Preview & customize text and style' },
+          { step: 4, icon: 'share-social', text: 'Export & share via native share sheet' },
+        ].map((s, i) => (
+          <View key={s.step} style={[styles.howItWorksRow, i < 3 && styles.howItWorksBorder]}>
+            <View style={styles.howItWorksStep}>
+              <Text style={styles.howItWorksStepNum}>{s.step}</Text>
+            </View>
+            <Ionicons name={s.icon as any} size={20} color={Colors.sage} style={{ marginRight: 10 }} />
+            <Text style={styles.howItWorksText}>{s.text}</Text>
+          </View>
+        ))}
+      </View>
+    </>
+  );
+
+  // ══════════════════════════════════════════════════════════════════
+  // LEADERBOARD TAB
+  // ══════════════════════════════════════════════════════════════════
+
+  const renderLeaderboard = () => {
+    const BADGE_LABELS: Record<string, string> = {
+      cash: 'Big Spender',
+      'shield-checkmark': 'Budget Keeper',
+      heart: 'Most Generous',
+      compass: 'Explorer',
+      book: 'Journal Champ',
+    };
+
+    return (
+      <>
+        {/* Leaderboard Hero */}
+        <View style={styles.leaderboardHero}>
+          <LinearGradient
+            colors={['#B07A50', '#8B5E3C']}
+            style={styles.leaderboardHeroGradient}
+          >
+            <Ionicons name="trophy" size={40} color="#FFC947" />
+            <Text style={styles.leaderboardHeroTitle}>Trip Leaderboard</Text>
+            <Text style={styles.leaderboardHeroSub}>
+              {tripName} · {members.length} travellers
+            </Text>
+          </LinearGradient>
+        </View>
+
+        {/* Leaderboard entries */}
+        {leaderboard.map((entry, i) => (
+          <View key={i} style={styles.leaderboardCard}>
+            <View style={styles.leaderboardRank}>
+              <Ionicons name={entry.badge as any} size={22} color={entry.badgeColor} />
+            </View>
+            <View style={[styles.leaderboardAvatar, { backgroundColor: entry.color }]}>
+              <Text style={styles.leaderboardAvatarText}>{entry.initial}</Text>
+            </View>
+            <View style={styles.leaderboardInfo}>
+              <View style={styles.leaderboardNameRow}>
+                <Text style={styles.leaderboardName}>{entry.name}</Text>
+                <View style={[styles.leaderboardBadge, { backgroundColor: entry.badgeColor + '1A' }]}>
+                  <Text style={[styles.leaderboardBadgeText, { color: entry.badgeColor }]}>
+                    {BADGE_LABELS[entry.badge] || 'Award'}
+                  </Text>
+                </View>
+              </View>
+              <Text style={styles.leaderboardStat}>{entry.stat}</Text>
+            </View>
+          </View>
+        ))}
+
+        {/* Fun Stats */}
+        <View style={[styles.sectionRow, { marginTop: Spacing.lg }]}>
+          <Ionicons name="stats-chart-outline" size={18} color={Colors.sage} />
+          <Text style={styles.sectionTitle}>Fun Stats</Text>
+        </View>
+
+        <View style={styles.funStatsGrid}>
+          {[
+            { icon: 'pizza', value: `₹${(reportData.categoryBreakdown.find(c => c.category === 'food')?.amount || 0).toLocaleString('en-IN')}`, label: 'Spent on Food', color: '#B07A50' },
+            { icon: 'bed', value: `${dayCount}`, label: 'Nights Away', color: '#8B6DB5' },
+            { icon: 'camera', value: `${journals.reduce((s, j) => s + j.photos.length, 0) || 23}`, label: 'Photos Taken', color: '#4A8BA8' },
+            { icon: 'happy', value: `${journals.filter(j => j.mood === 'amazing').length}`, label: 'Amazing Days', color: '#5E8A5A' },
+          ].map((stat, i) => (
+            <View key={i} style={styles.funStatCard}>
+              <View style={[styles.funStatIcon, { backgroundColor: stat.color + '1A' }]}>
+                <Ionicons name={stat.icon as any} size={22} color={stat.color} />
+              </View>
+              <Text style={styles.funStatValue}>{stat.value}</Text>
+              <Text style={styles.funStatLabel}>{stat.label}</Text>
+            </View>
+          ))}
+        </View>
+      </>
+    );
+  };
+
+  // ══════════════════════════════════════════════════════════════════
+  // MAP TAB
+  // ══════════════════════════════════════════════════════════════════
+
+  const renderMap = () => {
+    const uniqueLocations = mapLocations.filter(
+      (loc, i, arr) => arr.findIndex(l => l.name === loc.name) === i,
+    );
+
+    return (
+      <>
+        {/* Map Stats Hero */}
+        <View style={styles.mapHero}>
+          <LinearGradient
+            colors={['#1a535c', '#0b2d30']}
+            style={styles.mapHeroGradient}
+          >
+            <Ionicons name="navigate" size={32} color="#22C55E" />
+            <Text style={styles.mapHeroTitle}>Your Journey</Text>
+            <View style={styles.mapHeroStats}>
+              <View style={styles.mapHeroStat}>
+                <Text style={styles.mapHeroStatNum}>{uniqueLocations.length}</Text>
+                <Text style={styles.mapHeroStatLabel}>Places</Text>
+              </View>
+              <View style={styles.mapHeroStatDivider} />
+              <View style={styles.mapHeroStat}>
+                <Text style={styles.mapHeroStatNum}>{totalDistance}+</Text>
+                <Text style={styles.mapHeroStatLabel}>km Covered</Text>
+              </View>
+              <View style={styles.mapHeroStatDivider} />
+              <View style={styles.mapHeroStat}>
+                <Text style={styles.mapHeroStatNum}>{dayCount}</Text>
+                <Text style={styles.mapHeroStatLabel}>Days</Text>
+              </View>
+            </View>
+          </LinearGradient>
+        </View>
+
+        {/* Route Timeline */}
+        <View style={styles.sectionRow}>
+          <Ionicons name="trail-sign-outline" size={18} color={Colors.sage} />
+          <Text style={styles.sectionTitle}>Route Timeline</Text>
+        </View>
+
+        {SAMPLE_ITINERARY.map((day) => (
+          <View key={day.dayNumber} style={styles.mapDaySection}>
+            <View style={styles.mapDayHeader}>
+              <View style={styles.mapDayBadge}>
+                <Text style={styles.mapDayBadgeText}>{day.dayNumber}</Text>
+              </View>
+              <Text style={styles.mapDayLabel}>Day {day.dayNumber}</Text>
+              <Text style={styles.mapDayCount}>{day.items.length} stops</Text>
+            </View>
+
+            {day.items.map((item, idx) => {
+              const iconName = CATEGORY_IONICONS[item.type] || 'location';
+              const iconColor = CATEGORY_COLORS[item.type] || Colors.sage;
+
+              return (
+                <View key={idx} style={styles.mapItemRow}>
+                  {/* Timeline connector */}
+                  <View style={styles.mapTimelineCol}>
+                    <View style={[styles.mapTimelineDot, { backgroundColor: iconColor }]}>
+                      <Ionicons name={iconName as any} size={14} color={Colors.white} />
+                    </View>
+                    {idx < day.items.length - 1 && <View style={styles.mapTimelineLine} />}
+                  </View>
+
+                  {/* Content */}
+                  <View style={styles.mapItemContent}>
+                    <Text style={styles.mapItemTitle}>{item.title}</Text>
+                    <View style={styles.mapItemMeta}>
+                      <Ionicons name="location-outline" size={12} color={Colors.textMuted} />
+                      <Text style={styles.mapItemLocation}>{item.location}</Text>
+                    </View>
+                  </View>
+
+                  <Text style={styles.mapItemTime}>{item.time}</Text>
+                </View>
+              );
+            })}
+          </View>
+        ))}
+
+        {/* Distance summary */}
+        <View style={[styles.card, { flexDirection: 'row', alignItems: 'center', gap: 14, marginTop: Spacing.md }]}>
+          <View style={[styles.funStatIcon, { backgroundColor: '#22C55E1A' }]}>
+            <Ionicons name="footsteps" size={22} color="#22C55E" />
+          </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.insightTitle}>Budget Insight</Text>
-            <Text style={styles.insightBody}>
-              You went over budget on Hotel and Food. Consider pre-booking accommodations and setting daily meal budgets on your next trip.
+            <Text style={styles.insightTitle}>Distance Covered</Text>
+            <Text style={styles.insightDetail}>
+              You visited {uniqueLocations.length} unique locations across {dayCount} days,
+              covering approximately {totalDistance}+ km. That's roughly {Math.round(totalDistance / dayCount)} km per day!
             </Text>
           </View>
         </View>
@@ -301,167 +826,17 @@ export default function ReviewScreen() {
     );
   };
 
-  // ──────────────────────────────────────────
-  // Settlements Tab
-  // ──────────────────────────────────────────
-
-  const renderSettlements = () => (
-    <>
-      {/* Per person card */}
-      <View style={[styles.gradientCardWrapper, { marginBottom: Spacing.lg }]}>
-        <LinearGradient
-          colors={[Colors.sage, Colors.sageDark]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.perPersonGradient}
-        >
-          <Text style={styles.perPersonLabel}>Per Person Share</Text>
-          <Text style={styles.perPersonAmount}>₹{PER_PERSON.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</Text>
-          <Text style={styles.perPersonSub}>Total ₹{TOTAL_PAID.toLocaleString('en-IN')} ÷ {MEMBERS.length} people</Text>
-        </LinearGradient>
-      </View>
-
-      {/* Member cards */}
-      <Text style={styles.sectionTitle}>Members</Text>
-      {MEMBERS.map((member) => {
-        const balance = member.paid - PER_PERSON;
-        const isPositive = balance >= 0;
-
-        return (
-          <View key={member.name} style={[styles.card, styles.memberCard]}>
-            <View style={[styles.memberAvatar, { backgroundColor: member.color }]}>
-              <Text style={styles.memberAvatarText}>{member.initial}</Text>
-            </View>
-            <View style={styles.memberInfo}>
-              <Text style={styles.memberName}>{member.name}</Text>
-              <Text style={styles.memberPaid}>Paid ₹{member.paid.toLocaleString('en-IN')}</Text>
-            </View>
-            <View style={styles.memberBalanceCol}>
-              <Text style={[styles.memberBalance, { color: isPositive ? Colors.success : Colors.error }]}>
-                {isPositive ? 'Gets back' : 'Owes'}
-              </Text>
-              <Text style={[styles.memberBalanceAmount, { color: isPositive ? Colors.success : Colors.error }]}>
-                ₹{Math.abs(balance).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
-              </Text>
-            </View>
-          </View>
-        );
-      })}
-
-      {/* Settlements */}
-      <Text style={[styles.sectionTitle, { marginTop: Spacing.lg }]}>Settlements</Text>
-      <View style={styles.card}>
-        {SETTLEMENTS.map((s, index) => (
-          <View key={index} style={[styles.settlementRow, index < SETTLEMENTS.length - 1 && styles.settlementRowBorder]}>
-            <View style={styles.settlementFromTo}>
-              <View style={[styles.settlementDot, { backgroundColor: Colors.error }]} />
-              <Text style={styles.settlementName}>{s.from}</Text>
-              <Text style={styles.settlementArrow}>→</Text>
-              <View style={[styles.settlementDot, { backgroundColor: Colors.success }]} />
-              <Text style={styles.settlementName}>{s.to}</Text>
-            </View>
-            <Text style={styles.settlementAmount}>₹{s.amount.toLocaleString('en-IN')}</Text>
-          </View>
-        ))}
-      </View>
-
-      {/* CTA */}
-      <View style={[styles.card, { marginTop: Spacing.lg, flexDirection: 'row', alignItems: 'center', gap: 12 }]}>
-        <Text style={{ fontSize: 28 }}>✅</Text>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.insightTitle}>All Settled?</Text>
-          <Text style={styles.insightBody}>
-            Once everyone has paid their share, mark the trip as settled to close out the expenses.
-          </Text>
-        </View>
-      </View>
-    </>
-  );
-
-  // ──────────────────────────────────────────
-  // Memories Tab
-  // ──────────────────────────────────────────
-
-  const renderMemories = () => (
-    <>
-      {/* Header card */}
-      <View style={[styles.card, { marginBottom: Spacing.lg }]}>
-        <View style={styles.memoriesHeader}>
-          <Text style={styles.memoriesEmoji}>📸</Text>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.memoriesTitle}>{TRIP_NAME} Memories</Text>
-            <View style={styles.memoriesStats}>
-              <View style={styles.memoriesStat}>
-                <Text style={styles.memoriesStatNum}>{TRIP_DAYS}</Text>
-                <Text style={styles.memoriesStatLabel}>days</Text>
-              </View>
-              <View style={styles.memoriesStatDivider} />
-              <View style={styles.memoriesStat}>
-                <Text style={styles.memoriesStatNum}>{TOTAL_EXPENSES_COUNT}</Text>
-                <Text style={styles.memoriesStatLabel}>expenses</Text>
-              </View>
-              <View style={styles.memoriesStatDivider} />
-              <View style={styles.memoriesStat}>
-                <Text style={styles.memoriesStatNum}>{TOTAL_JOURNALS}</Text>
-                <Text style={styles.memoriesStatLabel}>journals</Text>
-              </View>
-            </View>
-          </View>
-        </View>
-      </View>
-
-      {/* Day cards */}
-      {DAYS_DATA.map((day) => (
-        <View key={day.day} style={[styles.card, { marginBottom: Spacing.md }]}>
-          <View style={styles.dayHeader}>
-            <View style={styles.dayBadge}>
-              <Text style={styles.dayBadgeText}>{day.day}</Text>
-            </View>
-            <Text style={styles.dayLabel}>{day.label}</Text>
-          </View>
-
-          <View style={styles.dayStatsRow}>
-            <View style={styles.dayStat}>
-              <Text style={styles.dayStatEmoji}>📋</Text>
-              <Text style={styles.dayStatText}>{day.planned} planned</Text>
-            </View>
-            <View style={styles.dayStat}>
-              <Text style={styles.dayStatEmoji}>✅</Text>
-              <Text style={styles.dayStatText}>{day.actual} completed</Text>
-            </View>
-            <View style={styles.dayStat}>
-              <Text style={styles.dayStatEmoji}>💰</Text>
-              <Text style={styles.dayStatText}>{day.expenses} expenses</Text>
-            </View>
-          </View>
-
-          {day.journal && (
-            <View style={styles.journalSnippet}>
-              <Text style={styles.journalIcon}>📝</Text>
-              <Text style={styles.journalText} numberOfLines={2}>
-                {day.journal}
-              </Text>
-            </View>
-          )}
-        </View>
-      ))}
-    </>
-  );
-
-  // ──────────────────────────────────────────
-  // Render
-  // ──────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+  // RENDER
+  // ══════════════════════════════════════════════════════════════════
 
   const renderContent = () => {
     switch (activeTab) {
-      case 'summary':
-        return renderSummary();
-      case 'budget':
-        return renderBudgetVariance();
-      case 'settlements':
-        return renderSettlements();
-      case 'memories':
-        return renderMemories();
+      case 'settle': return renderSettle();
+      case 'report': return renderReport();
+      case 'create': return renderCreate();
+      case 'leaderboard': return renderLeaderboard();
+      case 'map': return renderMap();
     }
   };
 
@@ -469,11 +844,21 @@ export default function ReviewScreen() {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Header */}
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={20}>
-          <Text style={styles.backArrow}>←</Text>
+        <Pressable
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.back(); }}
+          hitSlop={20}
+          style={styles.backBtn}
+        >
+          <Ionicons name="chevron-back" size={24} color={Colors.text} />
         </Pressable>
-        <Text style={styles.headerTitle}>Trip Review</Text>
-        <View style={{ width: 24 }} />
+        <Text style={styles.headerTitle}>Recap</Text>
+        <Pressable
+          onPress={handleShareReport}
+          hitSlop={20}
+          style={styles.headerAction}
+        >
+          <Ionicons name="share-outline" size={22} color={Colors.accent} />
+        </Pressable>
       </View>
 
       {/* Sub-tabs */}
@@ -487,6 +872,12 @@ export default function ReviewScreen() {
           const isActive = activeTab === tab.key;
           return (
             <Pressable key={tab.key} onPress={() => switchTab(tab.key)} style={[styles.tab, isActive && styles.tabActive]}>
+              <Ionicons
+                name={tab.icon}
+                size={16}
+                color={isActive ? Colors.white : Colors.textMuted}
+                style={{ marginRight: 5 }}
+              />
               <Text style={[styles.tabText, isActive && styles.tabTextActive]}>{tab.label}</Text>
             </Pressable>
           );
@@ -506,13 +897,168 @@ export default function ReviewScreen() {
           <View style={{ height: insets.bottom + 40 }} />
         </ScrollView>
       </Animated.View>
+
+      {/* ── Blog Preview Modal ────────────────────────── */}
+      <Modal visible={showBlogModal} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContainer, { paddingBottom: insets.bottom + 20 }]}>
+            <View style={styles.modalHandle} />
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Blog Preview</Text>
+              <Pressable onPress={() => setShowBlogModal(false)} hitSlop={12}>
+                <Ionicons name="close-circle" size={28} color={Colors.textMuted} />
+              </Pressable>
+            </View>
+            <ScrollView style={styles.blogScroll} showsVerticalScrollIndicator={false}>
+              <Text style={styles.blogPreviewTitle}>
+                {dayCount} Days in {destination} — A Journey to Remember
+              </Text>
+              <Text style={styles.blogPreviewMeta}>
+                By You · {dayCount} min read
+              </Text>
+              {journals.map((entry, i) => (
+                <View key={i} style={styles.blogEntry}>
+                  <Text style={styles.blogDayLabel}>
+                    {i === 0 ? 'The Beginning' : `Day ${entry.day}`}
+                    {entry.mood ? ` — Feeling ${entry.mood}` : ''}
+                  </Text>
+                  <Text style={styles.blogEntryText}>{entry.text}</Text>
+                </View>
+              ))}
+              <View style={styles.blogFooter}>
+                <Text style={styles.blogFooterText}>
+                  Written with love and a little help from TraiMate AI
+                </Text>
+              </View>
+            </ScrollView>
+            <View style={styles.modalActions}>
+              <Pressable
+                onPress={() => { setShowBlogModal(false); handleShareBlog(); }}
+                style={styles.modalPrimaryBtn}
+              >
+                <LinearGradient
+                  colors={['#5E8A5A', '#3D6B39']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.modalPrimaryGradient}
+                >
+                  <Ionicons name="share-outline" size={18} color={Colors.white} />
+                  <Text style={styles.modalPrimaryText}>Share Blog</Text>
+                </LinearGradient>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Thread Preview Modal ──────────────────────── */}
+      <Modal visible={showThreadModal} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContainer, { paddingBottom: insets.bottom + 20 }]}>
+            <View style={styles.modalHandle} />
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Thread Preview</Text>
+              <Pressable onPress={() => setShowThreadModal(false)} hitSlop={12}>
+                <Ionicons name="close-circle" size={28} color={Colors.textMuted} />
+              </Pressable>
+            </View>
+            <ScrollView style={styles.blogScroll} showsVerticalScrollIndicator={false}>
+              {generateThread(destination, dayCount, journals, reportData.totalSpent).map((tweet, i) => (
+                <View key={i} style={styles.threadCard}>
+                  <View style={styles.threadHeader}>
+                    <View style={[styles.threadAvatar, { backgroundColor: Colors.accent }]}>
+                      <Text style={styles.threadAvatarText}>Y</Text>
+                    </View>
+                    <View>
+                      <Text style={styles.threadAuthor}>You</Text>
+                      <Text style={styles.threadHandle}>@traveller</Text>
+                    </View>
+                    <Text style={styles.threadCount}>{i + 1}/{generateThread(destination, dayCount, journals, reportData.totalSpent).length}</Text>
+                  </View>
+                  <Text style={styles.threadText}>{tweet}</Text>
+                </View>
+              ))}
+            </ScrollView>
+            <View style={styles.modalActions}>
+              <Pressable
+                onPress={() => { setShowThreadModal(false); handleShareThread(); }}
+                style={styles.modalPrimaryBtn}
+              >
+                <LinearGradient
+                  colors={['#1DA1F2', '#0D8BD9']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.modalPrimaryGradient}
+                >
+                  <Ionicons name="share-outline" size={18} color={Colors.white} />
+                  <Text style={styles.modalPrimaryText}>Share Thread</Text>
+                </LinearGradient>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Reel Generation Modal ─────────────────────── */}
+      <Modal visible={showReelModal} animationType="fade" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.reelModalContainer, { paddingBottom: insets.bottom + 20 }]}>
+            <LinearGradient
+              colors={['#1a1a2e', '#16213e']}
+              style={styles.reelModalGradient}
+            >
+              {reelProgress < 100 ? (
+                <>
+                  <Ionicons name="videocam" size={48} color="#FFC947" style={{ marginBottom: 16 }} />
+                  <Text style={styles.reelModalTitle}>Creating Your Reel</Text>
+                  <Text style={styles.reelModalSub}>
+                    {reelProgress < 30 ? 'Gathering your best moments...' :
+                     reelProgress < 60 ? 'Adding transitions & effects...' :
+                     reelProgress < 90 ? 'Mixing the soundtrack...' :
+                     'Finalizing...'}
+                  </Text>
+                  <View style={styles.reelProgressTrack}>
+                    <View style={[styles.reelProgressBar, { width: `${reelProgress}%` }]} />
+                  </View>
+                  <Text style={styles.reelProgressText}>{reelProgress}%</Text>
+                </>
+              ) : (
+                <>
+                  <Ionicons name="checkmark-circle" size={56} color="#22C55E" style={{ marginBottom: 16 }} />
+                  <Text style={styles.reelModalTitle}>Reel Ready!</Text>
+                  <Text style={styles.reelModalSub}>
+                    Your {dayCount}-day {destination} reel is ready to share
+                  </Text>
+                  <View style={styles.reelActions}>
+                    <Pressable
+                      onPress={() => {
+                        setShowReelModal(false);
+                        handleShareReport();
+                      }}
+                      style={styles.reelShareBtn}
+                    >
+                      <Text style={styles.reelShareText}>Share Now</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => setShowReelModal(false)}
+                      style={styles.reelLaterBtn}
+                    >
+                      <Text style={styles.reelLaterText}>Save for Later</Text>
+                    </Pressable>
+                  </View>
+                </>
+              )}
+            </LinearGradient>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
 
-// ──────────────────────────────────────────────
-// Styles
-// ──────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════
+// STYLES
+// ══════════════════════════════════════════════════════════════════════
 
 const styles = StyleSheet.create({
   container: {
@@ -528,14 +1074,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.xl,
     paddingVertical: Spacing.md,
   },
-  backArrow: {
-    fontSize: 24,
-    color: Colors.text,
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: Colors.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Shadows.card,
   },
   headerTitle: {
     fontFamily: Fonts.heading,
     fontSize: FontSizes.xl,
     color: Colors.text,
+  },
+  headerAction: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: Colors.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Shadows.card,
   },
 
   // Sub-tabs
@@ -549,8 +1109,10 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.sm,
   },
   tab: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
     borderRadius: BorderRadius.pill,
     backgroundColor: Colors.white,
     borderWidth: 1.5,
@@ -579,253 +1141,63 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.sm,
   },
 
-  // Shared card
+  // Shared
   card: {
     backgroundColor: Colors.card,
     ...BorderRadius.card,
     padding: Spacing.lg,
     ...Shadows.card,
+    marginBottom: Spacing.sm,
   },
-
-  // Section title
+  sectionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: Spacing.md,
+  },
   sectionTitle: {
     fontFamily: Fonts.heading,
     fontSize: FontSizes.lg,
     color: Colors.text,
-    marginBottom: Spacing.md,
   },
-
-  // ─── Summary Tab ───
-
-  // Analysis card
-  analysisHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    marginBottom: Spacing.md,
-  },
-  analysisEmoji: {
-    fontSize: 40,
-  },
-  analysisTitle: {
-    fontFamily: Fonts.heading,
-    fontSize: FontSizes.xl,
-    color: Colors.text,
-  },
-  analysisSubtitle: {
-    fontFamily: Fonts.body,
-    fontSize: FontSizes.sm,
-    color: Colors.textSecondary,
-    marginTop: 2,
-  },
-  analysisSummary: {
-    fontFamily: Fonts.body,
-    fontSize: FontSizes.md,
-    color: Colors.textSecondary,
-    lineHeight: 22,
-  },
-
-  // Total Spent gradient
   gradientCardWrapper: {
     borderRadius: BorderRadius.lg,
     overflow: 'hidden',
-    ...Shadows.card,
+    ...Shadows.cardHover,
   },
-  totalGradient: {
+
+  // ═══ SETTLE TAB ═══
+
+  settleHeroGradient: {
     padding: Spacing.xl,
     alignItems: 'center',
   },
-  totalLabel: {
-    fontFamily: Fonts.bodyMedium,
-    fontSize: FontSizes.sm,
-    color: 'rgba(255,255,255,0.8)',
-  },
-  totalAmount: {
-    fontFamily: Fonts.heading,
-    fontSize: 48,
-    color: Colors.white,
-    marginVertical: Spacing.xs,
-  },
-  totalSub: {
-    fontFamily: Fonts.body,
-    fontSize: FontSizes.sm,
-    color: 'rgba(255,255,255,0.7)',
-  },
-
-  // Category breakdown
-  categoryRow: {
-    paddingVertical: 14,
-  },
-  categoryRowBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  categoryHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: Spacing.sm,
-  },
-  categoryLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  categoryEmoji: {
-    fontSize: 20,
-  },
-  categoryName: {
-    fontFamily: Fonts.bodyMedium,
-    fontSize: FontSizes.md,
-    color: Colors.text,
-  },
-  categoryRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  categoryAmount: {
-    fontFamily: Fonts.bodySemiBold,
-    fontSize: FontSizes.md,
-    color: Colors.text,
-  },
-  categoryPct: {
-    fontFamily: Fonts.bodySemiBold,
-    fontSize: FontSizes.xs,
-    minWidth: 48,
-    textAlign: 'right',
-  },
-  progressTrack: {
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: Colors.border,
-    overflow: 'hidden',
-  },
-  progressBar: {
-    height: '100%',
-    borderRadius: 4,
-  },
-
-  // ─── Budget Variance Tab ───
-
-  budgetOverviewRow: {
-    flexDirection: 'row',
-  },
-  budgetStatCard: {
-    backgroundColor: Colors.card,
-    ...BorderRadius.card,
-    padding: Spacing.md,
-    alignItems: 'center',
-    ...Shadows.card,
-  },
-  budgetStatLabel: {
-    fontFamily: Fonts.body,
-    fontSize: FontSizes.xs,
-    color: Colors.textMuted,
-    marginBottom: 4,
-  },
-  budgetStatValue: {
-    fontFamily: Fonts.bodySemiBold,
-    fontSize: FontSizes.md,
-    color: Colors.text,
-  },
-
-  // Table
-  tableHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.md,
-    paddingVertical: 12,
-    backgroundColor: Colors.accent,
-  },
-  tableHeaderCell: {
-    fontFamily: Fonts.bodySemiBold,
-    fontSize: FontSizes.xs,
-    color: Colors.white,
-    letterSpacing: 0.5,
-  },
-  tableRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.md,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  tableCellRow: {
+  settleHeroTop: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    marginBottom: 8,
   },
-  tableCellEmoji: {
-    fontSize: 16,
-  },
-  tableCellCategory: {
+  settleHeroLabel: {
     fontFamily: Fonts.bodyMedium,
     fontSize: FontSizes.sm,
-    color: Colors.text,
+    color: 'rgba(255,255,255,0.85)',
   },
-  tableCellValue: {
-    fontFamily: Fonts.body,
-    fontSize: FontSizes.sm,
-    color: Colors.textSecondary,
-    textAlign: 'right',
-  },
-  varianceCell: {
-    alignItems: 'flex-end',
-  },
-  varianceBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: BorderRadius.sm,
-  },
-  varianceText: {
-    fontFamily: Fonts.bodySemiBold,
-    fontSize: FontSizes.xs,
-  },
-
-  // Insight card
-  insightTitle: {
-    fontFamily: Fonts.bodySemiBold,
-    fontSize: FontSizes.md,
-    color: Colors.text,
-    marginBottom: 4,
-  },
-  insightBody: {
-    fontFamily: Fonts.body,
-    fontSize: FontSizes.sm,
-    color: Colors.textSecondary,
-    lineHeight: 20,
-  },
-
-  // ─── Settlements Tab ───
-
-  perPersonGradient: {
-    padding: Spacing.xl,
-    alignItems: 'center',
-  },
-  perPersonLabel: {
-    fontFamily: Fonts.bodyMedium,
-    fontSize: FontSizes.sm,
-    color: 'rgba(255,255,255,0.8)',
-  },
-  perPersonAmount: {
+  settleHeroAmount: {
     fontFamily: Fonts.heading,
     fontSize: 44,
     color: Colors.white,
     marginVertical: Spacing.xs,
   },
-  perPersonSub: {
+  settleHeroSub: {
     fontFamily: Fonts.body,
     fontSize: FontSizes.sm,
     color: 'rgba(255,255,255,0.7)',
   },
 
-  // Members
   memberCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: Spacing.sm,
   },
   memberAvatar: {
     width: 44,
@@ -857,26 +1229,38 @@ const styles = StyleSheet.create({
   memberBalanceCol: {
     alignItems: 'flex-end',
   },
-  memberBalance: {
-    fontFamily: Fonts.body,
-    fontSize: FontSizes.xs,
+  balanceBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    gap: 4,
   },
   memberBalanceAmount: {
     fontFamily: Fonts.bodySemiBold,
     fontSize: FontSizes.md,
+  },
+  memberBalanceLabel: {
+    fontFamily: Fonts.body,
+    fontSize: FontSizes.xs,
     marginTop: 2,
   },
 
-  // Settlements
-  settlementRow: {
+  settlementCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Spacing.sm,
+  },
+  settlementSettled: {
+    opacity: 0.6,
+    backgroundColor: '#F0F0ED',
+  },
+  settlementContent: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 14,
-  },
-  settlementRowBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
   },
   settlementFromTo: {
     flexDirection: 'row',
@@ -893,10 +1277,7 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.md,
     color: Colors.text,
   },
-  settlementArrow: {
-    fontFamily: Fonts.body,
-    fontSize: FontSizes.lg,
-    color: Colors.textMuted,
+  settlementArrowWrap: {
     marginHorizontal: 2,
   },
   settlementAmount: {
@@ -904,111 +1285,912 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.md,
     color: Colors.accent,
   },
+  settleCheckbox: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: Colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 12,
+  },
+  settleCheckboxActive: {
+    backgroundColor: Colors.success,
+    borderColor: Colors.success,
+  },
 
-  // ─── Memories Tab ───
-
-  memoriesHeader: {
+  allSettledCard: {
+    marginTop: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    overflow: 'hidden',
+    ...Shadows.card,
+  },
+  allSettledGradient: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
+    padding: Spacing.lg,
   },
-  memoriesEmoji: {
-    fontSize: 40,
-  },
-  memoriesTitle: {
-    fontFamily: Fonts.heading,
-    fontSize: FontSizes.xl,
-    color: Colors.text,
-    marginBottom: Spacing.sm,
-  },
-  memoriesStats: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  memoriesStat: {
-    alignItems: 'center',
-  },
-  memoriesStatNum: {
+  allSettledTitle: {
     fontFamily: Fonts.bodySemiBold,
     fontSize: FontSizes.lg,
-    color: Colors.accent,
+    color: Colors.white,
   },
-  memoriesStatLabel: {
+  allSettledSub: {
     fontFamily: Fonts.body,
-    fontSize: FontSizes.xs,
-    color: Colors.textMuted,
-  },
-  memoriesStatDivider: {
-    width: 1,
-    height: 24,
-    backgroundColor: Colors.border,
+    fontSize: FontSizes.sm,
+    color: 'rgba(255,255,255,0.8)',
+    marginTop: 2,
   },
 
-  // Day cards
-  dayHeader: {
+  // ═══ AI REPORT TAB ═══
+
+  tripScoreCard: {
+    marginBottom: Spacing.lg,
+    borderRadius: BorderRadius.lg,
+    overflow: 'hidden',
+    ...Shadows.cardHover,
+  },
+  tripScoreGradient: {
+    padding: Spacing.xl,
+  },
+  tripScoreInner: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.lg,
   },
-  dayBadge: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    backgroundColor: Colors.accent,
+  tripScoreCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: Spacing.lg,
+  },
+  tripScoreNumber: {
+    fontFamily: Fonts.heading,
+    fontSize: 32,
+    color: Colors.white,
+  },
+  tripScoreOf: {
+    fontFamily: Fonts.body,
+    fontSize: FontSizes.xs,
+    color: 'rgba(255,255,255,0.6)',
+    marginTop: -4,
+  },
+  tripScoreText: {
+    flex: 1,
+  },
+  tripScoreLabel: {
+    fontFamily: Fonts.bodyMedium,
+    fontSize: FontSizes.sm,
+    color: 'rgba(255,255,255,0.7)',
+  },
+  tripScoreDesc: {
+    fontFamily: Fonts.heading,
+    fontSize: FontSizes.xl,
+    color: Colors.white,
+    marginTop: 2,
+  },
+  tripScoreStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingTop: Spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.15)',
+  },
+  tripScoreStat: {
+    alignItems: 'center',
+  },
+  tripScoreStatNum: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: FontSizes.xl,
+    color: Colors.white,
+  },
+  tripScoreStatLabel: {
+    fontFamily: Fonts.body,
+    fontSize: FontSizes.xs,
+    color: 'rgba(255,255,255,0.6)',
+    marginTop: 2,
+  },
+  tripScoreStatDivider: {
+    width: 1,
+    height: 28,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+  },
+
+  savingsCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(94,138,90,0.08)',
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    marginBottom: Spacing.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(94,138,90,0.2)',
+    gap: 12,
+  },
+  savingsIconWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: 'rgba(94,138,90,0.15)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  dayBadgeText: {
+  savingsTitle: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: FontSizes.md,
+    color: Colors.success,
+  },
+  savingsDesc: {
+    fontFamily: Fonts.body,
+    fontSize: FontSizes.sm,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+
+  totalSpentRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.md,
+  },
+  totalSpentLabel: {
+    fontFamily: Fonts.body,
+    fontSize: FontSizes.sm,
+    color: Colors.textMuted,
+  },
+  totalSpentAmount: {
+    fontFamily: Fonts.heading,
+    fontSize: FontSizes.xl,
+    color: Colors.text,
+  },
+
+  categoryRow: {
+    paddingVertical: 12,
+  },
+  categoryRowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  categoryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  categoryLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  categoryIconCircle: {
+    width: 30,
+    height: 30,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  categoryName: {
+    fontFamily: Fonts.bodyMedium,
+    fontSize: FontSizes.md,
+    color: Colors.text,
+  },
+  categoryRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  categoryAmount: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: FontSizes.md,
+    color: Colors.text,
+  },
+  categoryPct: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: FontSizes.xs,
+    minWidth: 40,
+    textAlign: 'right',
+  },
+  progressTrack: {
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: Colors.border,
+    overflow: 'hidden',
+  },
+  progressBar: {
+    height: '100%',
+    borderRadius: 3,
+  },
+
+  highlightCard: {
+    width: 160,
+    backgroundColor: Colors.white,
+    ...BorderRadius.card,
+    padding: Spacing.md,
+    ...Shadows.card,
+  },
+  highlightIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.sm,
+  },
+  highlightTitle: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: FontSizes.sm,
+    color: Colors.text,
+    marginBottom: 4,
+  },
+  highlightDesc: {
+    fontFamily: Fonts.body,
+    fontSize: FontSizes.xs,
+    color: Colors.textSecondary,
+    lineHeight: 16,
+  },
+  highlightMetric: {
+    marginTop: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    backgroundColor: Colors.sage + '15',
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+  },
+  highlightMetricText: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: 10,
+    color: Colors.sage,
+  },
+
+  insightCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.white,
+    ...BorderRadius.card,
+    overflow: 'hidden',
+    marginBottom: Spacing.sm,
+    ...Shadows.card,
+  },
+  insightAccent: {
+    width: 4,
+    alignSelf: 'stretch',
+  },
+  insightIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: 12,
+  },
+  insightTitle: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: FontSizes.md,
+    color: Colors.text,
+    marginBottom: 2,
+  },
+  insightDetail: {
+    fontFamily: Fonts.body,
+    fontSize: FontSizes.sm,
+    color: Colors.textSecondary,
+    lineHeight: 20,
+    paddingRight: Spacing.md,
+  },
+
+  tipRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingVertical: 12,
+    gap: 12,
+  },
+  tipRowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  tipNumber: {
+    width: 24,
+    height: 24,
+    borderRadius: 8,
+    backgroundColor: Colors.sage + '1A',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tipNumberText: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: FontSizes.xs,
+    color: Colors.sage,
+  },
+  tipText: {
+    flex: 1,
+    fontFamily: Fonts.body,
+    fontSize: FontSizes.sm,
+    color: Colors.textSecondary,
+    lineHeight: 20,
+  },
+
+  shareReportBtn: {
+    marginTop: Spacing.lg,
+    borderRadius: BorderRadius.lg,
+    overflow: 'hidden',
+    ...Shadows.card,
+  },
+  shareReportGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+    gap: 8,
+  },
+  shareReportText: {
     fontFamily: Fonts.bodySemiBold,
     fontSize: FontSizes.md,
     color: Colors.white,
   },
-  dayLabel: {
+
+  // ═══ CREATE TAB ═══
+
+  createHero: {
+    marginBottom: Spacing.lg,
+    borderRadius: BorderRadius.lg,
+    overflow: 'hidden',
+    ...Shadows.cardHover,
+  },
+  createHeroGradient: {
+    padding: Spacing.xl,
+    alignItems: 'center',
+  },
+  createHeroTitle: {
+    fontFamily: Fonts.heading,
+    fontSize: FontSizes.xxl,
+    color: Colors.white,
+    marginTop: 12,
+  },
+  createHeroSub: {
+    fontFamily: Fonts.body,
+    fontSize: FontSizes.sm,
+    color: 'rgba(255,255,255,0.7)',
+    marginTop: 6,
+    textAlign: 'center',
+  },
+
+  formatCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.white,
+    ...BorderRadius.card,
+    padding: Spacing.md,
+    marginBottom: Spacing.sm,
+    ...Shadows.card,
+  },
+  formatCardPressed: {
+    opacity: 0.85,
+    transform: [{ scale: 0.98 }],
+  },
+  formatIconGradient: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 14,
+  },
+  formatContent: {
+    flex: 1,
+  },
+  formatLabel: {
     fontFamily: Fonts.bodySemiBold,
     fontSize: FontSizes.md,
     color: Colors.text,
   },
-
-  dayStatsRow: {
-    flexDirection: 'row',
-    gap: 16,
-    marginBottom: Spacing.sm,
-  },
-  dayStat: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  dayStatEmoji: {
-    fontSize: 14,
-  },
-  dayStatText: {
+  formatDesc: {
     fontFamily: Fonts.body,
-    fontSize: FontSizes.xs,
+    fontSize: FontSizes.sm,
     color: Colors.textSecondary,
-  },
-
-  journalSnippet: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-    marginTop: Spacing.sm,
-    paddingTop: Spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
-  },
-  journalIcon: {
-    fontSize: 16,
     marginTop: 2,
   },
-  journalText: {
+
+  howItWorksRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+  },
+  howItWorksBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  howItWorksStep: {
+    width: 28,
+    height: 28,
+    borderRadius: 9,
+    backgroundColor: Colors.sage + '1A',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  howItWorksStepNum: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: FontSizes.sm,
+    color: Colors.sage,
+  },
+  howItWorksText: {
     flex: 1,
     fontFamily: Fonts.body,
     fontSize: FontSizes.sm,
+    color: Colors.text,
+  },
+
+  // ═══ LEADERBOARD TAB ═══
+
+  leaderboardHero: {
+    marginBottom: Spacing.lg,
+    borderRadius: BorderRadius.lg,
+    overflow: 'hidden',
+    ...Shadows.cardHover,
+  },
+  leaderboardHeroGradient: {
+    padding: Spacing.xl,
+    alignItems: 'center',
+  },
+  leaderboardHeroTitle: {
+    fontFamily: Fonts.heading,
+    fontSize: FontSizes.xxl,
+    color: Colors.white,
+    marginTop: 10,
+  },
+  leaderboardHeroSub: {
+    fontFamily: Fonts.body,
+    fontSize: FontSizes.sm,
+    color: 'rgba(255,255,255,0.7)',
+    marginTop: 4,
+  },
+
+  leaderboardCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.white,
+    ...BorderRadius.card,
+    padding: Spacing.md,
+    marginBottom: Spacing.sm,
+    ...Shadows.card,
+  },
+  leaderboardRank: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: Colors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  leaderboardAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  leaderboardAvatarText: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: FontSizes.lg,
+    color: Colors.white,
+  },
+  leaderboardInfo: {
+    flex: 1,
+  },
+  leaderboardNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  leaderboardName: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: FontSizes.md,
+    color: Colors.text,
+  },
+  leaderboardBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  leaderboardBadgeText: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: 10,
+  },
+  leaderboardStat: {
+    fontFamily: Fonts.body,
+    fontSize: FontSizes.sm,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+
+  funStatsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+  },
+  funStatCard: {
+    width: (SCREEN_WIDTH - Spacing.xl * 2 - Spacing.sm) / 2,
+    backgroundColor: Colors.white,
+    ...BorderRadius.card,
+    padding: Spacing.md,
+    alignItems: 'center',
+    ...Shadows.card,
+  },
+  funStatIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  funStatValue: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: FontSizes.lg,
+    color: Colors.text,
+  },
+  funStatLabel: {
+    fontFamily: Fonts.body,
+    fontSize: FontSizes.xs,
+    color: Colors.textMuted,
+    marginTop: 2,
+  },
+
+  // ═══ MAP TAB ═══
+
+  mapHero: {
+    marginBottom: Spacing.lg,
+    borderRadius: BorderRadius.lg,
+    overflow: 'hidden',
+    ...Shadows.cardHover,
+  },
+  mapHeroGradient: {
+    padding: Spacing.xl,
+    alignItems: 'center',
+  },
+  mapHeroTitle: {
+    fontFamily: Fonts.heading,
+    fontSize: FontSizes.xxl,
+    color: Colors.white,
+    marginTop: 10,
+    marginBottom: 14,
+  },
+  mapHeroStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    width: '100%',
+    paddingTop: Spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.15)',
+  },
+  mapHeroStat: {
+    alignItems: 'center',
+  },
+  mapHeroStatNum: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: FontSizes.xl,
+    color: Colors.white,
+  },
+  mapHeroStatLabel: {
+    fontFamily: Fonts.body,
+    fontSize: FontSizes.xs,
+    color: 'rgba(255,255,255,0.6)',
+    marginTop: 2,
+  },
+  mapHeroStatDivider: {
+    width: 1,
+    height: 28,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+  },
+
+  mapDaySection: {
+    marginBottom: Spacing.lg,
+  },
+  mapDayHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Spacing.md,
+  },
+  mapDayBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: Colors.sage,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  mapDayBadgeText: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: FontSizes.sm,
+    color: Colors.white,
+  },
+  mapDayLabel: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: FontSizes.md,
+    color: Colors.text,
+    flex: 1,
+  },
+  mapDayCount: {
+    fontFamily: Fonts.body,
+    fontSize: FontSizes.xs,
+    color: Colors.textMuted,
+  },
+
+  mapItemRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingLeft: 4,
+  },
+  mapTimelineCol: {
+    width: 40,
+    alignItems: 'center',
+  },
+  mapTimelineDot: {
+    width: 28,
+    height: 28,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1,
+  },
+  mapTimelineLine: {
+    width: 2,
+    height: 32,
+    backgroundColor: Colors.border,
+  },
+  mapItemContent: {
+    flex: 1,
+    paddingBottom: 16,
+    marginLeft: 8,
+  },
+  mapItemTitle: {
+    fontFamily: Fonts.bodyMedium,
+    fontSize: FontSizes.md,
+    color: Colors.text,
+  },
+  mapItemMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 3,
+  },
+  mapItemLocation: {
+    fontFamily: Fonts.body,
+    fontSize: FontSizes.xs,
+    color: Colors.textMuted,
+  },
+  mapItemTime: {
+    fontFamily: Fonts.bodyMedium,
+    fontSize: FontSizes.xs,
+    color: Colors.textMuted,
+    marginTop: 2,
+  },
+
+  // ═══ MODALS ═══
+
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(44, 37, 32, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContainer: {
+    backgroundColor: Colors.white,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '85%',
+  },
+  modalHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Colors.border,
+    alignSelf: 'center',
+    marginTop: 10,
+    marginBottom: 12,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.xl,
+    marginBottom: Spacing.md,
+  },
+  modalTitle: {
+    fontFamily: Fonts.heading,
+    fontSize: FontSizes.xl,
+    color: Colors.text,
+  },
+  modalActions: {
+    paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.md,
+  },
+  modalPrimaryBtn: {
+    borderRadius: BorderRadius.md,
+    overflow: 'hidden',
+    ...Shadows.card,
+  },
+  modalPrimaryGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+    gap: 8,
+  },
+  modalPrimaryText: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: FontSizes.md,
+    color: Colors.white,
+  },
+
+  // Blog Modal
+  blogScroll: {
+    paddingHorizontal: Spacing.xl,
+    maxHeight: 400,
+  },
+  blogPreviewTitle: {
+    fontFamily: Fonts.heading,
+    fontSize: FontSizes.xl,
+    color: Colors.text,
+    marginBottom: 8,
+  },
+  blogPreviewMeta: {
+    fontFamily: Fonts.body,
+    fontSize: FontSizes.sm,
+    color: Colors.textMuted,
+    marginBottom: Spacing.lg,
+  },
+  blogEntry: {
+    marginBottom: Spacing.lg,
+  },
+  blogDayLabel: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: FontSizes.md,
+    color: Colors.sage,
+    marginBottom: 6,
+  },
+  blogEntryText: {
+    fontFamily: Fonts.body,
+    fontSize: FontSizes.sm,
+    color: Colors.text,
+    lineHeight: 22,
+  },
+  blogFooter: {
+    paddingVertical: Spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    alignItems: 'center',
+  },
+  blogFooterText: {
+    fontFamily: Fonts.body,
+    fontSize: FontSizes.xs,
     color: Colors.textMuted,
     fontStyle: 'italic',
+  },
+
+  // Thread Modal
+  threadCard: {
+    backgroundColor: Colors.background,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    marginBottom: Spacing.sm,
+  },
+  threadHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    gap: 8,
+  },
+  threadAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  threadAvatarText: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: FontSizes.sm,
+    color: Colors.white,
+  },
+  threadAuthor: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: FontSizes.sm,
+    color: Colors.text,
+  },
+  threadHandle: {
+    fontFamily: Fonts.body,
+    fontSize: FontSizes.xs,
+    color: Colors.textMuted,
+  },
+  threadCount: {
+    fontFamily: Fonts.body,
+    fontSize: FontSizes.xs,
+    color: Colors.textMuted,
+    marginLeft: 'auto',
+  },
+  threadText: {
+    fontFamily: Fonts.body,
+    fontSize: FontSizes.sm,
+    color: Colors.text,
     lineHeight: 20,
+  },
+
+  // Reel Modal
+  reelModalContainer: {
+    backgroundColor: 'transparent',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flex: 1,
+    paddingHorizontal: Spacing.xl,
+  },
+  reelModalGradient: {
+    width: '100%',
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.xxl,
+    alignItems: 'center',
+  },
+  reelModalTitle: {
+    fontFamily: Fonts.heading,
+    fontSize: FontSizes.xxl,
+    color: Colors.white,
+  },
+  reelModalSub: {
+    fontFamily: Fonts.body,
+    fontSize: FontSizes.sm,
+    color: 'rgba(255,255,255,0.7)',
+    marginTop: 6,
+    marginBottom: Spacing.xl,
+    textAlign: 'center',
+  },
+  reelProgressTrack: {
+    width: '100%',
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    overflow: 'hidden',
+  },
+  reelProgressBar: {
+    height: '100%',
+    borderRadius: 3,
+    backgroundColor: '#FFC947',
+  },
+  reelProgressText: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: FontSizes.sm,
+    color: 'rgba(255,255,255,0.7)',
+    marginTop: 8,
+  },
+  reelActions: {
+    width: '100%',
+    gap: 10,
+  },
+  reelShareBtn: {
+    backgroundColor: '#22C55E',
+    borderRadius: BorderRadius.md,
+    padding: 14,
+    alignItems: 'center',
+  },
+  reelShareText: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: FontSizes.md,
+    color: Colors.white,
+  },
+  reelLaterBtn: {
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
+    borderRadius: BorderRadius.md,
+    padding: 14,
+    alignItems: 'center',
+  },
+  reelLaterText: {
+    fontFamily: Fonts.bodyMedium,
+    fontSize: FontSizes.md,
+    color: 'rgba(255,255,255,0.8)',
   },
 });
