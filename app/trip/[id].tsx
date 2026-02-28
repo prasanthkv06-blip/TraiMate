@@ -25,7 +25,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors, Fonts, FontSizes, Spacing, BorderRadius, Shadows } from '../../src/constants/theme';
 import AIGuide from '../../src/components/AIGuide';
 import { SAMPLE_TRIPS } from '../../src/constants/sampleData';
-import { CATEGORY_ICONS, CATEGORY_COLORS } from '../../src/constants/aiData';
+import { CATEGORY_ICONS, CATEGORY_COLORS, type AISuggestion } from '../../src/constants/aiData';
 import {
   generateItinerary,
   createEmptyDays,
@@ -224,6 +224,7 @@ export default function TripDetailScreen() {
   const [showItemMenu, setShowItemMenu] = useState<{ dayId: string; itemId: string } | null>(null);
   const [expandedTips, setExpandedTips] = useState<Set<string>>(new Set());
   const [dismissedSuggestions, setDismissedSuggestions] = useState<Set<number>>(new Set());
+  const [trendingDetail, setTrendingDetail] = useState<AISuggestion | null>(null);
 
   // ── Form state for add/edit item ───────────────────────────────────────
   const [formTitle, setFormTitle] = useState('');
@@ -1183,7 +1184,13 @@ export default function TripDetailScreen() {
             {/* ── D) Trending Nearby ────────────────────────── */}
             {trending.length > 0 && (
               <>
-                <Text style={styles.liveSectionTitle}>TRENDING NEARBY</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.sm }}>
+                  <Text style={styles.liveSectionTitle}>TRENDING NEARBY</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <Ionicons name="flame" size={14} color="#EF4444" />
+                    <Text style={{ fontFamily: Fonts.body, fontSize: FontSizes.xs, color: Colors.textMuted }}>{trending.length} spots</Text>
+                  </View>
+                </View>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: Spacing.xl }}>
                   {trending.map((item, idx) => {
                     const fullStars = Math.floor(item.rating);
@@ -1191,64 +1198,64 @@ export default function TripDetailScreen() {
                     return (
                       <Pressable
                         key={`trend-${idx}`}
-                        style={({ pressed }) => [styles.liveTrendingCard, pressed && { transform: [{ scale: 0.95 }], opacity: 0.85 }]}
+                        style={({ pressed }) => [styles.liveTrendingCard, pressed && { transform: [{ scale: 0.96 }] }]}
                         onPress={() => {
                           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                          Alert.alert(
-                            `Add "${item.tl}"?`,
-                            `${item.desc || item.l} — ${item.price}`,
-                            [
-                              { text: 'Cancel', style: 'cancel' },
-                              {
-                                text: 'Add to Plan',
-                                onPress: () => {
-                                  const newItem: ItineraryItem = {
-                                    id: `trend-${Date.now()}-${idx}`,
-                                    time: item.stype === 'food' ? '13:00' : '15:00',
-                                    title: item.tl,
-                                    emoji: '✨',
-                                    type: item.stype === 'food' ? 'food' : 'activity',
-                                    duration: '1.5h',
-                                    location: item.l,
-                                    aiTip: item.ai || `Trending — rated ${item.rating}/5`,
-                                    source: 'ai',
-                                  };
-                                  setItinerary(prev => prev.map(day =>
-                                    day.dayNumber === currentDay
-                                      ? { ...day, items: [...day.items, newItem] }
-                                      : day
-                                  ));
-                                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                                  Alert.alert('Added!', `"${item.tl}" added to today's plan`);
-                                },
-                              },
-                            ]
-                          );
+                          setTrendingDetail(item);
                         }}
                       >
-                        <View style={styles.liveTrendingIcon}>
-                          <Ionicons
-                            name={item.stype === 'food' ? 'restaurant-outline' : 'compass-outline'}
-                            size={22}
-                            color={Colors.sage}
-                          />
-                        </View>
-                        <Text style={styles.liveTrendingTitle} numberOfLines={2}>{item.tl}</Text>
-                        <Text style={styles.liveTrendingLocation} numberOfLines={1}>{item.l}</Text>
-                        <View style={styles.liveTrendingRating}>
-                          {Array.from({ length: 5 }).map((_, si) => (
+                        {/* Gradient accent strip at top */}
+                        <LinearGradient
+                          colors={item.stype === 'food' ? ['#F59E0B', '#EF4444'] : ['#5E8A5A', '#3B82F6']}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 0 }}
+                          style={{ height: 3, borderTopLeftRadius: BorderRadius.md, borderTopRightRadius: BorderRadius.md, marginTop: -12, marginHorizontal: -12, marginBottom: 10 }}
+                        />
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                          <View style={[styles.liveTrendingIcon, { backgroundColor: item.stype === 'food' ? '#FEF3C7' : `${Colors.sage}15` }]}>
                             <Ionicons
-                              key={`star-${idx}-${si}`}
-                              name={si < fullStars ? 'star' : (si === fullStars && hasHalf ? 'star-half' : 'star-outline')}
-                              size={12}
-                              color="#FBBF24"
+                              name={item.stype === 'food' ? 'restaurant' : 'compass'}
+                              size={18}
+                              color={item.stype === 'food' ? '#F59E0B' : Colors.sage}
                             />
-                          ))}
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.liveTrendingTitle} numberOfLines={1}>{item.tl}</Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                              <Ionicons name="location-outline" size={10} color={Colors.textMuted} />
+                              <Text style={styles.liveTrendingLocation} numberOfLines={1}>{item.l}</Text>
+                            </View>
+                          </View>
                         </View>
-                        <Text style={styles.liveTrendingPrice}>{item.price}</Text>
-                        <View style={styles.liveTrendingAddBtn}>
-                          <Ionicons name="add-circle" size={20} color={Colors.sage} />
-                          <Text style={styles.liveTrendingAddText}>Add</Text>
+                        <Text style={{ fontFamily: Fonts.body, fontSize: 11, color: Colors.textSecondary, marginBottom: 8 }} numberOfLines={2}>{item.desc}</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <View style={styles.liveTrendingRating}>
+                            {Array.from({ length: 5 }).map((_, si) => (
+                              <Ionicons
+                                key={`star-${idx}-${si}`}
+                                name={si < fullStars ? 'star' : (si === fullStars && hasHalf ? 'star-half' : 'star-outline')}
+                                size={12}
+                                color="#FBBF24"
+                              />
+                            ))}
+                            <Text style={{ fontFamily: Fonts.bodySemiBold, fontSize: 11, color: Colors.text, marginLeft: 4 }}>{item.rating}</Text>
+                          </View>
+                          <Text style={styles.liveTrendingPrice}>{item.price}</Text>
+                        </View>
+                        {/* Tags */}
+                        {item.tags && item.tags.length > 0 && (
+                          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 8 }}>
+                            {item.tags.slice(0, 2).map((tag, ti) => (
+                              <View key={`tag-${idx}-${ti}`} style={styles.liveTrendingTag}>
+                                <Text style={styles.liveTrendingTagText}>{tag}</Text>
+                              </View>
+                            ))}
+                          </View>
+                        )}
+                        {/* Tap hint */}
+                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, marginTop: 10, paddingTop: 8, borderTopWidth: 1, borderTopColor: 'rgba(0,0,0,0.05)' }}>
+                          <Ionicons name="add-circle" size={16} color={Colors.sage} />
+                          <Text style={{ fontFamily: Fonts.bodySemiBold, fontSize: 11, color: Colors.sage }}>Tap to explore</Text>
                         </View>
                       </Pressable>
                     );
@@ -1261,28 +1268,38 @@ export default function TripDetailScreen() {
             <View style={{ height: 100 }} />
           </ScrollView>
 
-          {/* ── E) Fixed Frosted Quick Actions Bar ──────── */}
-          <BlurView
-            intensity={80}
-            tint="light"
-            style={styles.liveBottomBar}
-          >
-            <View style={styles.liveBottomBarInner}>
+          {/* ── E) Fixed Floating Action Dock ──────────── */}
+          <View style={styles.liveBottomBar}>
+            <LinearGradient
+              colors={['rgba(247,243,238,0)', 'rgba(247,243,238,0.85)', 'rgba(247,243,238,1)']}
+              style={styles.liveBottomFade}
+              pointerEvents="none"
+            />
+            <View style={styles.liveBottomDock}>
               <Pressable
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   router.push({ pathname: '/trip/journal' as any, params: { tripId: params.id, destination: params.destination || '' } });
                 }}
-                style={({ pressed }) => [styles.liveBottomAction, pressed && { transform: [{ scale: 0.92 }], opacity: 0.8 }]}
+                style={({ pressed }) => [styles.liveBottomAction, pressed && { transform: [{ scale: 0.92 }] }]}
               >
-                <View style={styles.liveBottomActionIconWrap}>
-                  <Ionicons name="book" size={22} color={Colors.white} />
-                </View>
+                <LinearGradient
+                  colors={['#5E8A5A', '#4A7A4A']}
+                  style={styles.liveBottomActionIconWrap}
+                >
+                  <Ionicons name="book" size={20} color={Colors.white} />
+                </LinearGradient>
                 <Text style={styles.liveBottomActionLabel}>Journal</Text>
                 <View style={styles.liveBottomActionSubIcons}>
-                  <Ionicons name="pencil-outline" size={12} color={Colors.textMuted} />
-                  <Ionicons name="camera-outline" size={12} color={Colors.textMuted} />
-                  <Ionicons name="mic-outline" size={12} color={Colors.textMuted} />
+                  <View style={styles.liveBottomSubIconDot}>
+                    <Ionicons name="pencil" size={10} color={Colors.sage} />
+                  </View>
+                  <View style={styles.liveBottomSubIconDot}>
+                    <Ionicons name="camera" size={10} color={Colors.sage} />
+                  </View>
+                  <View style={styles.liveBottomSubIconDot}>
+                    <Ionicons name="mic" size={10} color={Colors.sage} />
+                  </View>
                 </View>
               </Pressable>
 
@@ -1293,19 +1310,145 @@ export default function TripDetailScreen() {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   router.push({ pathname: '/trip/expenses' as any, params: { tripId: params.id, destination: params.destination || '' } });
                 }}
-                style={({ pressed }) => [styles.liveBottomAction, pressed && { transform: [{ scale: 0.92 }], opacity: 0.8 }]}
+                style={({ pressed }) => [styles.liveBottomAction, pressed && { transform: [{ scale: 0.92 }] }]}
               >
-                <View style={[styles.liveBottomActionIconWrap, { backgroundColor: Colors.accent }]}>
-                  <Ionicons name="wallet" size={22} color={Colors.white} />
-                </View>
+                <LinearGradient
+                  colors={['#B07A50', '#8B5E3C']}
+                  style={styles.liveBottomActionIconWrap}
+                >
+                  <Ionicons name="wallet" size={20} color={Colors.white} />
+                </LinearGradient>
                 <Text style={styles.liveBottomActionLabel}>Expense</Text>
                 <View style={styles.liveBottomActionSubIcons}>
-                  <Ionicons name="card-outline" size={12} color={Colors.textMuted} />
-                  <Ionicons name="camera-outline" size={12} color={Colors.textMuted} />
+                  <View style={styles.liveBottomSubIconDot}>
+                    <Ionicons name="card" size={10} color={Colors.accent} />
+                  </View>
+                  <View style={styles.liveBottomSubIconDot}>
+                    <Ionicons name="camera" size={10} color={Colors.accent} />
+                  </View>
                 </View>
               </Pressable>
             </View>
-          </BlurView>
+          </View>
+
+          {/* ── Trending Detail Modal ──────────────────── */}
+          {trendingDetail && (
+            <Modal
+              visible={!!trendingDetail}
+              transparent
+              animationType="slide"
+              onRequestClose={() => setTrendingDetail(null)}
+            >
+              <View style={styles.trendingModalOverlay}>
+                <View style={styles.trendingModalSheet}>
+                  {/* Handle bar */}
+                  <View style={{ alignItems: 'center', paddingTop: 10, paddingBottom: 6 }}>
+                    <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: 'rgba(0,0,0,0.15)' }} />
+                  </View>
+                  {/* Header */}
+                  <View style={styles.trendingModalHeader}>
+                    <View style={[styles.trendingModalIconWrap, { backgroundColor: trendingDetail.stype === 'food' ? '#FEF3C7' : `${Colors.sage}15` }]}>
+                      <Ionicons
+                        name={trendingDetail.stype === 'food' ? 'restaurant' : 'compass'}
+                        size={28}
+                        color={trendingDetail.stype === 'food' ? '#F59E0B' : Colors.sage}
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.trendingModalTitle}>{trendingDetail.tl}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                        <Ionicons name="location" size={13} color={Colors.sage} />
+                        <Text style={styles.trendingModalLocation}>{trendingDetail.l}</Text>
+                      </View>
+                    </View>
+                    <Pressable onPress={() => setTrendingDetail(null)} style={styles.trendingModalClose}>
+                      <Ionicons name="close" size={22} color={Colors.textMuted} />
+                    </Pressable>
+                  </View>
+                  {/* Rating + Price row */}
+                  <View style={styles.trendingModalMeta}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <View style={{ flexDirection: 'row', gap: 1 }}>
+                        {Array.from({ length: 5 }).map((_, si) => {
+                          const fs = Math.floor(trendingDetail.rating);
+                          const hh = trendingDetail.rating - fs >= 0.3;
+                          return (
+                            <Ionicons
+                              key={`modal-star-${si}`}
+                              name={si < fs ? 'star' : (si === fs && hh ? 'star-half' : 'star-outline')}
+                              size={16}
+                              color="#FBBF24"
+                            />
+                          );
+                        })}
+                      </View>
+                      <Text style={{ fontFamily: Fonts.bodySemiBold, fontSize: FontSizes.sm, color: Colors.text }}>{trendingDetail.rating}</Text>
+                    </View>
+                    <View style={styles.trendingModalPriceBadge}>
+                      <Ionicons name="pricetag" size={13} color={Colors.sage} />
+                      <Text style={{ fontFamily: Fonts.bodySemiBold, fontSize: FontSizes.sm, color: Colors.sage }}>{trendingDetail.price}</Text>
+                    </View>
+                  </View>
+                  {/* Description */}
+                  <Text style={styles.trendingModalDesc}>{trendingDetail.desc}</Text>
+                  {/* AI insight */}
+                  {trendingDetail.ai ? (
+                    <View style={styles.trendingModalAI}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                        <Ionicons name="sparkles" size={14} color={Colors.sage} />
+                        <Text style={{ fontFamily: Fonts.bodySemiBold, fontSize: FontSizes.xs, color: Colors.sage }}>AI Insight</Text>
+                      </View>
+                      <Text style={{ fontFamily: Fonts.body, fontSize: FontSizes.sm, color: Colors.textSecondary, lineHeight: 20 }}>{trendingDetail.ai}</Text>
+                    </View>
+                  ) : null}
+                  {/* Tags */}
+                  {trendingDetail.tags && trendingDetail.tags.length > 0 && (
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: Spacing.lg }}>
+                      {trendingDetail.tags.map((tag, ti) => (
+                        <View key={`mtag-${ti}`} style={styles.trendingModalTag}>
+                          <Text style={styles.trendingModalTagText}>{tag}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                  {/* Add to Plan button */}
+                  <Pressable
+                    onPress={() => {
+                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                      const newItem: ItineraryItem = {
+                        id: `trend-${Date.now()}`,
+                        time: trendingDetail.stype === 'food' ? '13:00' : '15:00',
+                        title: trendingDetail.tl,
+                        emoji: '✨',
+                        type: trendingDetail.stype === 'food' ? 'food' : 'activity',
+                        duration: '1.5h',
+                        location: trendingDetail.l,
+                        aiTip: trendingDetail.ai || `Trending — rated ${trendingDetail.rating}/5`,
+                        source: 'ai',
+                      };
+                      setItinerary(prev => prev.map(day =>
+                        day.dayNumber === currentDay
+                          ? { ...day, items: [...day.items, newItem] }
+                          : day
+                      ));
+                      setTrendingDetail(null);
+                      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                      Alert.alert('Added!', `"${trendingDetail.tl}" added to today's plan`);
+                    }}
+                    style={({ pressed }) => [styles.trendingModalAddBtn, pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] }]}
+                  >
+                    <LinearGradient
+                      colors={['#5E8A5A', '#4A7A4A']}
+                      style={styles.trendingModalAddGradient}
+                    >
+                      <Ionicons name="add-circle" size={20} color={Colors.white} />
+                      <Text style={styles.trendingModalAddText}>Add to Today's Plan</Text>
+                    </LinearGradient>
+                  </Pressable>
+                </View>
+              </View>
+            </Modal>
+          )}
           </>
           );
         })()}
@@ -2861,21 +3004,26 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
   },
   liveTrendingCard: {
-    width: 140,
+    width: 180,
     backgroundColor: Colors.white,
-    borderRadius: BorderRadius.md,
+    borderRadius: BorderRadius.lg,
     padding: 12,
-    marginRight: 10,
-    ...Shadows.card,
+    marginRight: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.03)',
   },
   liveTrendingIcon: {
-    width: 36,
-    height: 36,
+    width: 32,
+    height: 32,
     borderRadius: 10,
     backgroundColor: `${Colors.sage}15`,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
-    marginBottom: 8,
   },
   liveTrendingTitle: {
     fontFamily: Fonts.bodySemiBold,
@@ -2904,65 +3052,182 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    overflow: 'hidden' as const,
-    borderTopWidth: 0.5,
-    borderTopColor: 'rgba(0,0,0,0.06)',
   },
-  liveBottomBarInner: {
+  liveBottomFade: {
+    height: 30,
+  },
+  liveBottomDock: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
+    backgroundColor: Colors.white,
+    marginHorizontal: 16,
+    marginBottom: Platform.OS === 'ios' ? 28 : 12,
+    borderRadius: 22,
     paddingHorizontal: Spacing.lg,
-    paddingTop: 14,
-    paddingBottom: Platform.OS === 'ios' ? 30 : 16,
-    gap: 16,
+    paddingVertical: 12,
+    gap: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 24,
+    elevation: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.04)',
   },
   liveBottomAction: {
     flex: 1,
     alignItems: 'center' as const,
-    paddingVertical: 8,
+    paddingVertical: 4,
   },
   liveBottomActionIconWrap: {
-    width: 44,
-    height: 44,
+    width: 42,
+    height: 42,
     borderRadius: 14,
-    backgroundColor: Colors.sage,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
     marginBottom: 6,
   },
   liveBottomActionLabel: {
     fontFamily: Fonts.bodySemiBold,
-    fontSize: FontSizes.sm,
+    fontSize: FontSizes.xs,
     color: Colors.text,
     marginBottom: 4,
   },
   liveBottomActionSubIcons: {
     flexDirection: 'row' as const,
-    gap: 6,
+    gap: 4,
+  },
+  liveBottomSubIconDot: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: 'rgba(94,138,90,0.1)',
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
   },
   liveBottomDivider: {
     width: 1,
-    height: 50,
-    backgroundColor: 'rgba(0,0,0,0.08)',
+    height: 44,
+    backgroundColor: 'rgba(0,0,0,0.06)',
   },
-  liveTrendingAddBtn: {
+  liveTrendingTag: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    backgroundColor: `${Colors.sage}12`,
+  },
+  liveTrendingTagText: {
+    fontFamily: Fonts.body,
+    fontSize: 10,
+    color: Colors.sage,
+  },
+  // ── Trending Detail Modal ──
+  trendingModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end' as const,
+  },
+  trendingModalSheet: {
+    backgroundColor: Colors.white,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: Spacing.xl,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
+    maxHeight: '75%' as any,
+  },
+  trendingModalHeader: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 14,
+    paddingVertical: Spacing.md,
+  },
+  trendingModalIconWrap: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+  },
+  trendingModalTitle: {
+    fontFamily: Fonts.heading,
+    fontSize: FontSizes.lg,
+    color: Colors.text,
+  },
+  trendingModalLocation: {
+    fontFamily: Fonts.body,
+    fontSize: FontSizes.sm,
+    color: Colors.textSecondary,
+  },
+  trendingModalClose: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+  },
+  trendingModalMeta: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'space-between' as const,
+    paddingVertical: Spacing.sm,
+    marginBottom: Spacing.sm,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: 'rgba(0,0,0,0.05)',
+  },
+  trendingModalPriceBadge: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 4,
+    backgroundColor: `${Colors.sage}12`,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+  },
+  trendingModalDesc: {
+    fontFamily: Fonts.body,
+    fontSize: FontSizes.sm,
+    color: Colors.textSecondary,
+    lineHeight: 22,
+    marginBottom: Spacing.md,
+  },
+  trendingModalAI: {
+    backgroundColor: `${Colors.sage}08`,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+    borderLeftWidth: 3,
+    borderLeftColor: Colors.sage,
+  },
+  trendingModalTag: {
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 12,
+    backgroundColor: 'rgba(0,0,0,0.04)',
+  },
+  trendingModalTagText: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: FontSizes.xs,
+    color: Colors.textSecondary,
+  },
+  trendingModalAddBtn: {
+    borderRadius: 16,
+    overflow: 'hidden' as const,
+  },
+  trendingModalAddGradient: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
-    gap: 4,
-    marginTop: 6,
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: 12,
-    backgroundColor: `${Colors.sage}15`,
+    gap: 8,
+    paddingVertical: 16,
+    borderRadius: 16,
   },
-  liveTrendingAddText: {
+  trendingModalAddText: {
     fontFamily: Fonts.bodySemiBold,
-    fontSize: FontSizes.xs,
-    color: Colors.sage,
+    fontSize: FontSizes.md,
+    color: Colors.white,
   },
   livePreTripAlert: {
     flexDirection: 'row' as const,
