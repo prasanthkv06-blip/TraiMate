@@ -3,7 +3,7 @@
  * Holds expenses, journal entries, itinerary, squad members, and trip metadata.
  * Persists across navigation within the /trip/* stack.
  */
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
 import type { ItineraryDay } from '../utils/itineraryGenerator';
 
 // ── Types ──────────────────────────────────────────────────────────────
@@ -149,28 +149,32 @@ export function TripProvider({ children }: { children: React.ReactNode }) {
     }));
   }, []);
 
+  const value = useMemo<TripContextValue>(() => ({
+    tripMeta,
+    setTripMeta,
+    squad,
+    setSquad,
+    addSquadMember,
+    itinerary,
+    setItinerary,
+    expenses,
+    addExpense,
+    removeExpense,
+    journalEntries,
+    setJournalEntry,
+    journalMoods,
+    setJournalMood,
+    journalPhotos,
+    addJournalPhoto,
+    removeJournalPhoto,
+  }), [
+    tripMeta, squad, itinerary, expenses, journalEntries, journalMoods, journalPhotos,
+    setTripMeta, setSquad, addSquadMember, setItinerary, addExpense, removeExpense,
+    setJournalEntry, setJournalMood, addJournalPhoto, removeJournalPhoto,
+  ]);
+
   return (
-    <TripContext.Provider
-      value={{
-        tripMeta,
-        setTripMeta,
-        squad,
-        setSquad,
-        addSquadMember,
-        itinerary,
-        setItinerary,
-        expenses,
-        addExpense,
-        removeExpense,
-        journalEntries,
-        setJournalEntry,
-        journalMoods,
-        setJournalMood,
-        journalPhotos,
-        addJournalPhoto,
-        removeJournalPhoto,
-      }}
-    >
+    <TripContext.Provider value={value}>
       {children}
     </TripContext.Provider>
   );

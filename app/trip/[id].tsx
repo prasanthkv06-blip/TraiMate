@@ -261,6 +261,8 @@ export default function TripDetailScreen() {
   const livePulse = useRef(new Animated.Value(0.4)).current;
   const [dockExpanded, setDockExpanded] = useState(false);
   const dockAnim = useRef(new Animated.Value(0)).current;
+  // Track timeout IDs for cleanup on unmount
+  const timeoutIdsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   // Generate stable invite code from trip ID
   const [inviteCode] = useState(() => {
     const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
@@ -287,6 +289,14 @@ export default function TripDetailScreen() {
     );
     pulse.start();
     return () => pulse.stop();
+  }, []);
+
+  // Cleanup all tracked timeouts on unmount
+  useEffect(() => {
+    return () => {
+      timeoutIdsRef.current.forEach(id => clearTimeout(id));
+      timeoutIdsRef.current = [];
+    };
   }, []);
 
   // ── Sync local state → TripContext ──────────────────────────────────────
@@ -326,7 +336,7 @@ export default function TripDetailScreen() {
   };
 
   // ── Invite helpers ─────────────────────────────────────────────────────
-  const inviteLink = `trailmate.app/join/${inviteCode}`;
+  const inviteLink = `traimate.app/join/${inviteCode}`;
 
   const handleCopyLink = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -369,18 +379,23 @@ export default function TripDetailScreen() {
     const delays = [1000, 1500, 1500, 1000];
     let accumulated = 0;
 
+    // Clear any previous generation timeouts
+    timeoutIdsRef.current.forEach(id => clearTimeout(id));
+    timeoutIdsRef.current = [];
+
     delays.forEach((delay, i) => {
       accumulated += delay;
-      setTimeout(() => {
+      const tid = setTimeout(() => {
         setGenSteps(prev => prev.map((s, idx) => idx <= i ? { ...s, done: true } : s));
         if (i < delays.length - 1) {
           setGenCurrentStep(i + 1);
         }
       }, accumulated);
+      timeoutIdsRef.current.push(tid);
     });
 
     // Generate actual itinerary after animation
-    setTimeout(() => {
+    const finalTid = setTimeout(() => {
       const generated = generateItinerary({
         destination: params.destination || trip.destination,
         startDate: params.startDate || '',
@@ -396,6 +411,7 @@ export default function TripDetailScreen() {
       setGenCurrentStep(-1);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }, accumulated + 800);
+    timeoutIdsRef.current.push(finalTid);
   }, [params.destination, params.startDate, params.endDate, params.tripType, tripStyles, trip.destination]);
 
   // ── Build from scratch ─────────────────────────────────────────────────
@@ -438,18 +454,23 @@ export default function TripDetailScreen() {
             setGenSteps(steps);
             setGenCurrentStep(0);
 
+            // Clear any previous generation timeouts
+            timeoutIdsRef.current.forEach(id => clearTimeout(id));
+            timeoutIdsRef.current = [];
+
             const delays = [1000, 1500, 1500, 1000];
             let accumulated = 0;
 
             delays.forEach((delay, i) => {
               accumulated += delay;
-              setTimeout(() => {
+              const tid = setTimeout(() => {
                 setGenSteps(prev => prev.map((s, idx) => idx <= i ? { ...s, done: true } : s));
                 if (i < delays.length - 1) setGenCurrentStep(i + 1);
               }, accumulated);
+              timeoutIdsRef.current.push(tid);
             });
 
-            setTimeout(() => {
+            const finalTid = setTimeout(() => {
               const generated = generateItinerary({
                 destination: params.destination || trip.destination,
                 startDate: params.startDate || '',
@@ -465,6 +486,7 @@ export default function TripDetailScreen() {
               setGenCurrentStep(-1);
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             }, accumulated + 800);
+            timeoutIdsRef.current.push(finalTid);
           },
         },
       ],

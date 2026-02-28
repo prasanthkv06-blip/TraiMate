@@ -18,6 +18,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
+import { Ionicons } from '@expo/vector-icons';
 import { Colors, Fonts, FontSizes, Spacing, BorderRadius, Shadows } from '../../src/constants/theme';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -267,7 +268,7 @@ export default function InviteScreen() {
   const [activeShareTab, setActiveShareTab] = useState<'quick' | 'search'>('quick');
 
   const inviteCode = useRef(generateInviteCode()).current;
-  const inviteLink = `trailmate.app/join/${inviteCode}`;
+  const inviteLink = `traimate.app/join/${inviteCode}`;
 
   // Animation
   const contentOpacity = useRef(new Animated.Value(0)).current;
@@ -399,7 +400,7 @@ export default function InviteScreen() {
       {/* Header */}
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} hitSlop={20}>
-          <Text style={styles.backArrow}>←</Text>
+          <Ionicons name="arrow-back" size={22} color={Colors.text} />
         </Pressable>
         <View style={styles.stepIndicator}>
           <View style={[styles.stepDot, styles.stepDotDone]} />

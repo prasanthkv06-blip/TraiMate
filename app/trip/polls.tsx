@@ -129,7 +129,7 @@ export default function PollsScreen() {
           <Ionicons name="arrow-back" size={22} color={Colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>Polls</Text>
-        <Pressable onPress={() => setShowCreatePoll(true)}><Ionicons name="add" size={24} color={Colors.accent} /></Pressable>
+        <Pressable onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowCreatePoll(true); }}><Ionicons name="add" size={24} color={Colors.accent} /></Pressable>
       </View>
 
       <Animated.View style={[styles.content, { opacity: contentOpacity }]}>

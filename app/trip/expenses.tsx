@@ -103,7 +103,7 @@ export default function ExpensesScreen() {
       paidBy: 'You',
       icon: cat?.icon || 'cube-outline',
       category: newCategory,
-      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      date: new Date().toISOString(),
       splitWith: MEMBERS,
       receiptUri: receiptUri || undefined,
     };
@@ -197,7 +197,7 @@ export default function ExpensesScreen() {
                 <View style={styles.expenseInfo}>
                   <Text style={styles.expenseName}>{expense.title}</Text>
                   <Text style={styles.expenseMeta}>
-                    Paid by {expense.paidBy} · {expense.date}
+                    Paid by {expense.paidBy} · {(() => { try { return new Date(expense.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); } catch { return expense.date; } })()}
                   </Text>
                 </View>
                 {expense.receiptUri && (
@@ -252,7 +252,7 @@ export default function ExpensesScreen() {
               {CATEGORIES.map((cat) => (
                 <Pressable
                   key={cat.id}
-                  onPress={() => setNewCategory(cat.id)}
+                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setNewCategory(cat.id); }}
                   style={[styles.catChip, newCategory === cat.id && styles.catChipActive]}
                 >
                   <Ionicons name={cat.icon} size={16} color={newCategory === cat.id ? Colors.accent : Colors.textSecondary} />

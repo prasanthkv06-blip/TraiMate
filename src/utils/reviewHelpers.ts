@@ -166,7 +166,7 @@ export function calculateSettlements(
     }
 
     const splitMembers = exp.splitWith.length > 0
-      ? [exp.paidBy, ...exp.splitWith].filter(n => memberNames.includes(n))
+      ? [...new Set([exp.paidBy, ...exp.splitWith])].filter(n => memberNames.includes(n))
       : [exp.paidBy];
 
     const sharePerPerson = exp.amount / splitMembers.length;
