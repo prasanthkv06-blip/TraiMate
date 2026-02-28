@@ -413,15 +413,63 @@ export default function TripDetailScreen() {
 
   // ── Regenerate ─────────────────────────────────────────────────────────
   const handleRegenerate = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Alert.alert(
       'Regenerate itinerary?',
       'This will replace your current plan. Any edits will be lost.',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Regenerate', onPress: startAIGeneration },
+        {
+          text: 'Regenerate',
+          onPress: () => {
+            // Call generation directly to avoid stale closure in Alert callback
+            setItineraryStatus('generating');
+            const destName = cleanDestination(params.destination || trip.destination);
+            const duration = getTripDuration(params.startDate || '', params.endDate || '');
+            const styleList = tripStyles.length > 0 ? tripStyles.join(' + ') : 'explorer';
+
+            const steps = [
+              { msg: `🔍 Analyzing your trip to ${destName}...`, done: false },
+              { msg: `🎯 Matching your ${styleList} vibes...`, done: false },
+              { msg: `📝 Building a ${duration}-day itinerary...`, done: false },
+              { msg: `💡 Adding local insider tips...`, done: false },
+            ];
+
+            setGenSteps(steps);
+            setGenCurrentStep(0);
+
+            const delays = [1000, 1500, 1500, 1000];
+            let accumulated = 0;
+
+            delays.forEach((delay, i) => {
+              accumulated += delay;
+              setTimeout(() => {
+                setGenSteps(prev => prev.map((s, idx) => idx <= i ? { ...s, done: true } : s));
+                if (i < delays.length - 1) setGenCurrentStep(i + 1);
+              }, accumulated);
+            });
+
+            setTimeout(() => {
+              const generated = generateItinerary({
+                destination: params.destination || trip.destination,
+                startDate: params.startDate || '',
+                endDate: params.endDate || '',
+                styles: tripStyles,
+                tripType: (params.tripType as 'solo' | 'group') || 'solo',
+              });
+
+              LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+              setItinerary(generated);
+              setItineraryStatus('ready');
+              setBuiltFromScratch(false);
+              setGenCurrentStep(-1);
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            }, accumulated + 800);
+          },
+        },
       ],
     );
-  }, [startAIGeneration]);
+  }, [params.destination, params.startDate, params.endDate, params.tripType, tripStyles, trip.destination]);
 
   // ── Add item ───────────────────────────────────────────────────────────
   const openAddItem = useCallback((dayId: string) => {

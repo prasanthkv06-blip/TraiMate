@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors, Fonts } from '../constants/theme';
 
 const TAB_ICONS: Record<string, { default: keyof typeof Ionicons.glyphMap; active: keyof typeof Ionicons.glyphMap; label: string }> = {
+  home: { default: 'home-outline', active: 'home', label: 'Home' },
   explore: { default: 'compass-outline', active: 'compass', label: 'Discover' },
   create: { default: 'add', active: 'add', label: 'New Trip' },
   profile: { default: 'person-outline', active: 'person', label: 'Profile' },
