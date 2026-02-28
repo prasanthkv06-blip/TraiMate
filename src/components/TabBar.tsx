@@ -1,13 +1,12 @@
 import { View, Text, Pressable, StyleSheet, Platform } from 'react-native';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
-import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Fonts, FontSizes, Spacing } from '../constants/theme';
+import { Colors, Fonts } from '../constants/theme';
 
 const TAB_ICONS: Record<string, { default: keyof typeof Ionicons.glyphMap; active: keyof typeof Ionicons.glyphMap; label: string }> = {
-  home: { default: 'home-outline', active: 'home', label: 'Home' },
   explore: { default: 'compass-outline', active: 'compass', label: 'Discover' },
   create: { default: 'add', active: 'add', label: 'New Trip' },
   profile: { default: 'person-outline', active: 'person', label: 'Profile' },
@@ -15,20 +14,19 @@ const TAB_ICONS: Record<string, { default: keyof typeof Ionicons.glyphMap; activ
 
 export default function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const router = useRouter();
+
   return (
     <View style={styles.wrapper}>
       <View style={styles.container}>
-        {Platform.OS === 'ios' ? (
-          <BlurView intensity={80} tint="light" style={styles.blur} />
-        ) : (
-          <View style={styles.androidBg} />
-        )}
         <View style={styles.tabRow}>
           {state.routes.map((route, index) => {
+            // Skip routes not in our tab configuration (e.g. hidden home tab)
+            if (!TAB_ICONS[route.name]) return null;
+
             const { options } = descriptors[route.key];
             const isFocused = state.index === index;
             const isCreate = route.name === 'create';
-            const iconInfo = TAB_ICONS[route.name] || { default: 'document-outline' as keyof typeof Ionicons.glyphMap, active: 'document' as keyof typeof Ionicons.glyphMap, label: route.name };
+            const iconInfo = TAB_ICONS[route.name];
 
             const onPress = () => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -42,26 +40,34 @@ export default function TabBar({ state, descriptors, navigation }: BottomTabBarP
               }
             };
 
+            // Centered elevated create button
             if (isCreate) {
               return (
                 <Pressable
                   key={route.key}
                   onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                     router.push('/create-trip');
                   }}
                   style={({ pressed }) => [
-                    styles.createButton,
+                    styles.createButtonWrapper,
                     pressed && styles.createButtonPressed,
                   ]}
                 >
-                  <View style={styles.createButtonInner}>
+                  <LinearGradient
+                    colors={['#5E8A5A', '#3D6B39']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.createButtonGradient}
+                  >
                     <Ionicons name="add" size={28} color={Colors.white} />
-                  </View>
+                  </LinearGradient>
+                  <Text style={styles.createLabel}>New Trip</Text>
                 </Pressable>
               );
             }
 
+            // Regular tab (Discover / Profile)
             return (
               <Pressable
                 key={route.key}
@@ -102,32 +108,27 @@ const styles = StyleSheet.create({
     right: 0,
     alignItems: 'center',
     paddingBottom: Platform.OS === 'ios' ? 28 : 12,
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
   },
   container: {
     width: '100%',
-    maxWidth: 400,
-    borderRadius: 28,
-    overflow: 'hidden',
+    maxWidth: 360,
+    borderRadius: 24,
+    backgroundColor: Colors.white,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.border,
     shadowColor: '#2C2520',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 20,
-    elevation: 12,
-  },
-  blur: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  androidBg: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255, 255, 255, 0.92)',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 8,
   },
   tabRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-around',
-    paddingVertical: 8,
-    paddingHorizontal: 4,
+    height: 60,
+    paddingHorizontal: 8,
   },
   tab: {
     flex: 1,
@@ -135,10 +136,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 6,
     position: 'relative',
+    gap: 3,
   },
   tabLabel: {
     fontFamily: Fonts.bodyMedium,
-    fontSize: 10,
+    fontSize: 11,
     color: Colors.textMuted,
   },
   tabLabelActive: {
@@ -147,31 +149,38 @@ const styles = StyleSheet.create({
   },
   activeIndicator: {
     position: 'absolute',
-    bottom: 0,
-    width: 20,
-    height: 3,
+    bottom: 2,
+    width: 18,
+    height: 2.5,
     borderRadius: 2,
     backgroundColor: Colors.accent,
   },
-  createButton: {
+  createButtonWrapper: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: -20,
+    marginTop: -28,
+    paddingBottom: 2,
   },
   createButtonPressed: {
     transform: [{ scale: 0.92 }],
   },
-  createButtonInner: {
-    width: 52,
-    height: 52,
+  createButtonGradient: {
+    width: 54,
+    height: 54,
     borderRadius: 18,
-    backgroundColor: Colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: Colors.accent,
+    overflow: 'hidden',
+    shadowColor: '#3D6B39',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
-    elevation: 6,
+    elevation: 10,
+  },
+  createLabel: {
+    fontFamily: Fonts.bodyMedium,
+    fontSize: 10,
+    color: Colors.textMuted,
+    marginTop: 4,
   },
 });
