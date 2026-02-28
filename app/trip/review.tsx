@@ -899,6 +899,7 @@ export default function ReviewScreen() {
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
         >
           {renderEmptyBanner()}
           {renderContent()}

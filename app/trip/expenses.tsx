@@ -128,7 +128,7 @@ export default function ExpensesScreen() {
       </View>
 
       <Animated.View style={[styles.content, { opacity: contentOpacity }]}>
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
           {/* Total card */}
           <View style={styles.totalCard}>
             <LinearGradient

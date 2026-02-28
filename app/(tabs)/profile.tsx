@@ -3,7 +3,10 @@ import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Haptics from 'expo-haptics';
+import { Ionicons } from '@expo/vector-icons';
 import { Colors, Fonts, FontSizes, Spacing, BorderRadius, Shadows } from '../../src/constants/theme';
+import { SAMPLE_TRIPS } from '../../src/constants/sampleData';
 
 const USER_NAME_KEY = '@trailmate_user_name';
 const ONBOARDING_KEY = '@trailmate_onboarded';
@@ -35,16 +38,17 @@ export default function ProfileScreen() {
           </Text>
         </View>
         <Text style={styles.name}>{userName || 'Traveler'}</Text>
-        <Text style={styles.memberSince}>Member since 2026</Text>
+        <Text style={styles.memberSince}>Member since {new Date().getFullYear()}</Text>
       </View>
 
       <View style={styles.statsRow}>
         {[
-          { value: '3', label: 'Trips' },
-          { value: '12', label: 'Countries' },
-          { value: '7', label: 'Friends' },
-        ].map((stat, i) => (
-          <View key={i} style={styles.stat}>
+          { value: String(SAMPLE_TRIPS.length), label: 'Trips', icon: 'compass-outline' },
+          { value: String(new Set(SAMPLE_TRIPS.map(t => t.destination.split(',').pop()?.trim())).size), label: 'Countries', icon: 'globe-outline' },
+          { value: String(SAMPLE_TRIPS.reduce((sum, t) => sum + (t.memberCount - 1), 0)), label: 'Friends', icon: 'people-outline' },
+        ].map((stat) => (
+          <View key={stat.label} style={styles.stat}>
+            <Ionicons name={stat.icon as any} size={18} color={Colors.accent} style={{ marginBottom: 4 }} />
             <Text style={styles.statValue}>{stat.value}</Text>
             <Text style={styles.statLabel}>{stat.label}</Text>
           </View>
@@ -53,7 +57,9 @@ export default function ProfileScreen() {
 
       <Pressable
         style={styles.resetButton}
-        onPress={handleResetOnboarding}
+        onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); handleResetOnboarding(); }}
+        accessibilityRole="button"
+        accessibilityLabel="Reset onboarding"
       >
         <Text style={styles.resetText}>Reset Onboarding</Text>
       </Pressable>

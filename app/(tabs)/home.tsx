@@ -113,12 +113,14 @@ export default function HomeScreen() {
     ]).start();
 
     // Looping sparkle pulse
-    Animated.loop(
+    const pulse = Animated.loop(
       Animated.sequence([
         Animated.timing(sparklePulse, { toValue: 1.2, duration: 1200, useNativeDriver: true }),
         Animated.timing(sparklePulse, { toValue: 1, duration: 1200, useNativeDriver: true }),
       ])
-    ).start();
+    );
+    pulse.start();
+    return () => pulse.stop();
   }, []);
 
   const onRefresh = async () => {
@@ -269,9 +271,9 @@ export default function HomeScreen() {
             contentContainerStyle={styles.chipsContainer}
             style={styles.chipsScroll}
           >
-            {insightChips.map((chip, index) => (
+            {insightChips.map((chip) => (
               <View
-                key={index}
+                key={chip.label}
                 style={[
                   styles.chip,
                   { backgroundColor: `${chip.color}14` },

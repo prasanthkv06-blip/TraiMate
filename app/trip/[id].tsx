@@ -279,12 +279,14 @@ export default function TripDetailScreen() {
   }, []);
 
   useEffect(() => {
-    Animated.loop(
+    const pulse = Animated.loop(
       Animated.sequence([
         Animated.timing(livePulse, { toValue: 1, duration: 800, useNativeDriver: true }),
         Animated.timing(livePulse, { toValue: 0.4, duration: 800, useNativeDriver: true }),
       ])
-    ).start();
+    );
+    pulse.start();
+    return () => pulse.stop();
   }, []);
 
   // ── Sync local state → TripContext ──────────────────────────────────────
@@ -605,6 +607,7 @@ export default function TripDetailScreen() {
       {/* ── Hero image ──────────────────────────────────────── */}
       <ImageBackground
         source={{ uri: trip.photos[0] }}
+        defaultSource={{ uri: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mN88P/BfwAJhAPk3KFb1AAAAABJRU5ErkJggg==' }}
         style={[styles.hero, { paddingTop: insets.top }]}
       >
         <View style={styles.heroGradient} pointerEvents="none">
