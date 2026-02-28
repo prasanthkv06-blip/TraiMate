@@ -243,6 +243,8 @@ export default function TripDetailScreen() {
   const tabIndicatorX = useRef(new Animated.Value(0)).current;
   const contentOpacity = useRef(new Animated.Value(0)).current;
   const livePulse = useRef(new Animated.Value(0.4)).current;
+  const [dockExpanded, setDockExpanded] = useState(false);
+  const dockAnim = useRef(new Animated.Value(0)).current;
   const inviteCode = 'x7kq2m';
 
   useEffect(() => {
@@ -1268,65 +1270,186 @@ export default function TripDetailScreen() {
             <View style={{ height: 100 }} />
           </ScrollView>
 
-          {/* ── E) Fixed Floating Action Dock ──────────── */}
-          <View style={styles.liveBottomBar}>
+          {/* ── E) Expandable Command Center ──────────── */}
+          <View style={styles.liveBottomBar} pointerEvents="box-none">
             <LinearGradient
-              colors={['rgba(247,243,238,0)', 'rgba(247,243,238,0.85)', 'rgba(247,243,238,1)']}
+              colors={['rgba(247,243,238,0)', 'rgba(247,243,238,0.9)', 'rgba(247,243,238,1)']}
               style={styles.liveBottomFade}
               pointerEvents="none"
             />
-            <View style={styles.liveBottomDock}>
+
+            {/* Expanded overlay backdrop */}
+            {dockExpanded && (
               <Pressable
+                style={StyleSheet.absoluteFill}
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  router.push({ pathname: '/trip/journal' as any, params: { tripId: params.id, destination: params.destination || '' } });
+                  setDockExpanded(false);
+                  Animated.spring(dockAnim, { toValue: 0, useNativeDriver: true, friction: 8 }).start();
                 }}
-                style={({ pressed }) => [styles.liveBottomAction, pressed && { transform: [{ scale: 0.92 }] }]}
-              >
-                <LinearGradient
-                  colors={['#5E8A5A', '#4A7A4A']}
-                  style={styles.liveBottomActionIconWrap}
+              />
+            )}
+
+            {/* Expanded cards */}
+            {dockExpanded && (
+              <Animated.View style={[styles.dockExpandedCards, {
+                opacity: dockAnim,
+                transform: [{ translateY: dockAnim.interpolate({ inputRange: [0, 1], outputRange: [40, 0] }) }],
+              }]}>
+                {/* Journal Card */}
+                <Pressable
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                    setDockExpanded(false);
+                    Animated.spring(dockAnim, { toValue: 0, useNativeDriver: true, friction: 8 }).start();
+                    router.push({ pathname: '/trip/journal' as any, params: { tripId: params.id, destination: params.destination || '' } });
+                  }}
+                  style={({ pressed }) => [styles.dockCard, pressed && { transform: [{ scale: 0.95 }] }]}
                 >
-                  <Ionicons name="book" size={20} color={Colors.white} />
-                </LinearGradient>
-                <Text style={styles.liveBottomActionLabel}>Journal</Text>
-                <View style={styles.liveBottomActionSubIcons}>
-                  <View style={styles.liveBottomSubIconDot}>
-                    <Ionicons name="pencil" size={10} color={Colors.sage} />
-                  </View>
-                  <View style={styles.liveBottomSubIconDot}>
-                    <Ionicons name="camera" size={10} color={Colors.sage} />
-                  </View>
-                  <View style={styles.liveBottomSubIconDot}>
-                    <Ionicons name="mic" size={10} color={Colors.sage} />
-                  </View>
-                </View>
-              </Pressable>
+                  <LinearGradient
+                    colors={['#5E8A5A', '#3D6B39']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.dockCardGradient}
+                  >
+                    <View style={styles.dockCardIconRow}>
+                      <View style={styles.dockCardIconCircle}>
+                        <Ionicons name="book" size={22} color="#5E8A5A" />
+                      </View>
+                      <Ionicons name="arrow-forward" size={18} color="rgba(255,255,255,0.6)" />
+                    </View>
+                    <Text style={styles.dockCardTitle}>Journal</Text>
+                    <Text style={styles.dockCardSub}>Write, snap photos, record voice</Text>
+                    <View style={styles.dockCardFeatures}>
+                      <View style={styles.dockCardFeaturePill}>
+                        <Ionicons name="pencil" size={11} color="rgba(255,255,255,0.9)" />
+                        <Text style={styles.dockCardFeatureText}>Write</Text>
+                      </View>
+                      <View style={styles.dockCardFeaturePill}>
+                        <Ionicons name="camera" size={11} color="rgba(255,255,255,0.9)" />
+                        <Text style={styles.dockCardFeatureText}>Photo</Text>
+                      </View>
+                      <View style={styles.dockCardFeaturePill}>
+                        <Ionicons name="mic" size={11} color="rgba(255,255,255,0.9)" />
+                        <Text style={styles.dockCardFeatureText}>Voice</Text>
+                      </View>
+                    </View>
+                  </LinearGradient>
+                </Pressable>
 
-              <View style={styles.liveBottomDivider} />
+                {/* Expense Card */}
+                <Pressable
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                    setDockExpanded(false);
+                    Animated.spring(dockAnim, { toValue: 0, useNativeDriver: true, friction: 8 }).start();
+                    router.push({ pathname: '/trip/expenses' as any, params: { tripId: params.id, destination: params.destination || '' } });
+                  }}
+                  style={({ pressed }) => [styles.dockCard, pressed && { transform: [{ scale: 0.95 }] }]}
+                >
+                  <LinearGradient
+                    colors={['#B07A50', '#8B5E3C']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.dockCardGradient}
+                  >
+                    <View style={styles.dockCardIconRow}>
+                      <View style={styles.dockCardIconCircle}>
+                        <Ionicons name="wallet" size={22} color="#B07A50" />
+                      </View>
+                      <Ionicons name="arrow-forward" size={18} color="rgba(255,255,255,0.6)" />
+                    </View>
+                    <Text style={styles.dockCardTitle}>Expense</Text>
+                    <Text style={styles.dockCardSub}>Track spending, scan receipts</Text>
+                    <View style={styles.dockCardFeatures}>
+                      <View style={styles.dockCardFeaturePill}>
+                        <Ionicons name="card" size={11} color="rgba(255,255,255,0.9)" />
+                        <Text style={styles.dockCardFeatureText}>Log</Text>
+                      </View>
+                      <View style={styles.dockCardFeaturePill}>
+                        <Ionicons name="camera" size={11} color="rgba(255,255,255,0.9)" />
+                        <Text style={styles.dockCardFeatureText}>Receipt</Text>
+                      </View>
+                    </View>
+                  </LinearGradient>
+                </Pressable>
 
+                {/* Poll Card */}
+                <Pressable
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                    setDockExpanded(false);
+                    Animated.spring(dockAnim, { toValue: 0, useNativeDriver: true, friction: 8 }).start();
+                    router.push({ pathname: '/trip/polls' as any, params: { tripId: params.id } });
+                  }}
+                  style={({ pressed }) => [styles.dockCard, pressed && { transform: [{ scale: 0.95 }] }]}
+                >
+                  <LinearGradient
+                    colors={['#6366F1', '#4338CA']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.dockCardGradient}
+                  >
+                    <View style={styles.dockCardIconRow}>
+                      <View style={styles.dockCardIconCircle}>
+                        <Ionicons name="stats-chart" size={22} color="#6366F1" />
+                      </View>
+                      <Ionicons name="arrow-forward" size={18} color="rgba(255,255,255,0.6)" />
+                    </View>
+                    <Text style={styles.dockCardTitle}>Polls</Text>
+                    <Text style={styles.dockCardSub}>Vote with your travel crew</Text>
+                    <View style={styles.dockCardFeatures}>
+                      <View style={styles.dockCardFeaturePill}>
+                        <Ionicons name="people" size={11} color="rgba(255,255,255,0.9)" />
+                        <Text style={styles.dockCardFeatureText}>Group</Text>
+                      </View>
+                      <View style={styles.dockCardFeaturePill}>
+                        <Ionicons name="checkmark-circle" size={11} color="rgba(255,255,255,0.9)" />
+                        <Text style={styles.dockCardFeatureText}>Vote</Text>
+                      </View>
+                    </View>
+                  </LinearGradient>
+                </Pressable>
+              </Animated.View>
+            )}
+
+            {/* Collapsed FAB pill */}
+            <View style={{ alignItems: 'center', paddingBottom: Platform.OS === 'ios' ? 28 : 12 }}>
               <Pressable
                 onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  router.push({ pathname: '/trip/expenses' as any, params: { tripId: params.id, destination: params.destination || '' } });
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  const expanding = !dockExpanded;
+                  setDockExpanded(expanding);
+                  Animated.spring(dockAnim, {
+                    toValue: expanding ? 1 : 0,
+                    useNativeDriver: true,
+                    friction: 7,
+                    tension: 50,
+                  }).start();
                 }}
-                style={({ pressed }) => [styles.liveBottomAction, pressed && { transform: [{ scale: 0.92 }] }]}
+                style={({ pressed }) => [styles.dockFab, pressed && { transform: [{ scale: 0.95 }] }]}
               >
                 <LinearGradient
-                  colors={['#B07A50', '#8B5E3C']}
-                  style={styles.liveBottomActionIconWrap}
+                  colors={dockExpanded ? ['#374151', '#1F2937'] : ['#1F2937', '#111827']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.dockFabGradient}
                 >
-                  <Ionicons name="wallet" size={20} color={Colors.white} />
+                  {!dockExpanded ? (
+                    <>
+                      <View style={[styles.dockFabDot, { backgroundColor: '#5E8A5A' }]} />
+                      <View style={[styles.dockFabDot, { backgroundColor: '#B07A50' }]} />
+                      <View style={[styles.dockFabDot, { backgroundColor: '#6366F1' }]} />
+                      <Text style={styles.dockFabLabel}>Quick Actions</Text>
+                      <Ionicons name="chevron-up" size={16} color="rgba(255,255,255,0.5)" />
+                    </>
+                  ) : (
+                    <>
+                      <Ionicons name="close" size={18} color="rgba(255,255,255,0.8)" />
+                      <Text style={styles.dockFabLabel}>Close</Text>
+                    </>
+                  )}
                 </LinearGradient>
-                <Text style={styles.liveBottomActionLabel}>Expense</Text>
-                <View style={styles.liveBottomActionSubIcons}>
-                  <View style={styles.liveBottomSubIconDot}>
-                    <Ionicons name="card" size={10} color={Colors.accent} />
-                  </View>
-                  <View style={styles.liveBottomSubIconDot}>
-                    <Ionicons name="camera" size={10} color={Colors.accent} />
-                  </View>
-                </View>
               </Pressable>
             </View>
           </View>
@@ -3054,62 +3177,99 @@ const styles = StyleSheet.create({
     right: 0,
   },
   liveBottomFade: {
-    height: 30,
+    height: 40,
   },
-  liveBottomDock: {
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
-    justifyContent: 'center' as const,
-    backgroundColor: Colors.white,
-    marginHorizontal: 16,
-    marginBottom: Platform.OS === 'ios' ? 28 : 12,
-    borderRadius: 22,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: 12,
-    gap: 12,
+  // ── Expandable Command Center ──
+  dockExpandedCards: {
+    paddingHorizontal: 16,
+    gap: 10,
+    marginBottom: 12,
+  },
+  dockCard: {
+    borderRadius: 18,
+    overflow: 'hidden' as const,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15,
-    shadowRadius: 24,
-    elevation: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.04)',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    elevation: 8,
   },
-  liveBottomAction: {
-    flex: 1,
-    alignItems: 'center' as const,
-    paddingVertical: 4,
+  dockCardGradient: {
+    padding: 16,
+    borderRadius: 18,
   },
-  liveBottomActionIconWrap: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    alignItems: 'center' as const,
-    justifyContent: 'center' as const,
-    marginBottom: 6,
-  },
-  liveBottomActionLabel: {
-    fontFamily: Fonts.bodySemiBold,
-    fontSize: FontSizes.xs,
-    color: Colors.text,
-    marginBottom: 4,
-  },
-  liveBottomActionSubIcons: {
+  dockCardIconRow: {
     flexDirection: 'row' as const,
-    gap: 4,
+    alignItems: 'center' as const,
+    justifyContent: 'space-between' as const,
+    marginBottom: 10,
   },
-  liveBottomSubIconDot: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: 'rgba(94,138,90,0.1)',
+  dockCardIconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.92)',
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
   },
-  liveBottomDivider: {
-    width: 1,
-    height: 44,
-    backgroundColor: 'rgba(0,0,0,0.06)',
+  dockCardTitle: {
+    fontFamily: Fonts.heading,
+    fontSize: FontSizes.lg,
+    color: Colors.white,
+    marginBottom: 2,
+  },
+  dockCardSub: {
+    fontFamily: Fonts.body,
+    fontSize: FontSizes.xs,
+    color: 'rgba(255,255,255,0.7)',
+    marginBottom: 12,
+  },
+  dockCardFeatures: {
+    flexDirection: 'row' as const,
+    gap: 6,
+  },
+  dockCardFeaturePill: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 4,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+  },
+  dockCardFeatureText: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.9)',
+  },
+  dockFab: {
+    borderRadius: 24,
+    overflow: 'hidden' as const,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  dockFabGradient: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    gap: 8,
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 24,
+  },
+  dockFabDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  dockFabLabel: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: FontSizes.sm,
+    color: 'rgba(255,255,255,0.85)',
+    marginLeft: 4,
   },
   liveTrendingTag: {
     paddingHorizontal: 8,
