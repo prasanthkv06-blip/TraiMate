@@ -18,18 +18,7 @@ import * as Haptics from 'expo-haptics';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Fonts, FontSizes, Spacing, BorderRadius, Shadows } from '../../src/constants/theme';
-
-interface Expense {
-  id: string;
-  title: string;
-  amount: number;
-  paidBy: string;
-  icon: string;
-  category: string;
-  date: string;
-  splitWith: string[];
-  receiptUri?: string;
-}
+import { useTripContext, type TripExpense } from '../../src/contexts/TripContext';
 
 const CATEGORIES = [
   { id: 'food', icon: 'restaurant-outline' as const, label: 'Food' },
@@ -40,13 +29,15 @@ const CATEGORIES = [
   { id: 'other', icon: 'cube-outline' as const, label: 'Other' },
 ];
 
-const MEMBERS = ['Alex', 'Sam', 'Jordan', 'Riley'];
-
 export default function ExpensesScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ tripId?: string; destination?: string }>();
-  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const tripCtx = useTripContext();
+
+  // Use squad member names from context
+  const MEMBERS = tripCtx.squad.map(m => m.name);
+  const expenses = tripCtx.expenses;
   const [showAddModal, setShowAddModal] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newAmount, setNewAmount] = useState('');
@@ -104,18 +95,18 @@ export default function ExpensesScreen() {
     if (!newTitle.trim() || !newAmount.trim()) return;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     const cat = CATEGORIES.find((c) => c.id === newCategory);
-    const newExpense: Expense = {
+    const newExpense: TripExpense = {
       id: Date.now().toString(),
       title: newTitle.trim(),
       amount: parseFloat(newAmount) || 0,
       paidBy: 'You',
       icon: cat?.icon || 'cube-outline',
       category: newCategory,
-      date: 'Today',
+      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
       splitWith: MEMBERS,
       receiptUri: receiptUri || undefined,
     };
-    setExpenses((prev) => [newExpense, ...prev]);
+    tripCtx.addExpense(newExpense);
     setNewTitle('');
     setNewAmount('');
     setReceiptUri(null);

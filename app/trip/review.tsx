@@ -43,6 +43,7 @@ import {
   type ShareFormat,
   type MapLocation,
 } from '../../src/utils/reviewHelpers';
+import { useTripContextSafe } from '../../src/contexts/TripContext';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -134,19 +135,66 @@ export default function ReviewScreen() {
     }
   }, [searchParams.tab]);
 
-  // ── Data (simulated — in production, pass via params or context) ────
-  const expenses = SAMPLE_EXPENSES;
-  const members = SAMPLE_MEMBERS;
-  const journals = SAMPLE_JOURNALS;
-  const destination = searchParams.destination || 'Goa';
-  const dayCount = searchParams.dayCount ? parseInt(searchParams.dayCount, 10) : 5;
-  const tripName = searchParams.tripName || 'Goa Adventure';
+  // ── Data (from TripContext, with fallback to samples for standalone access) ────
+  const tripCtx = useTripContextSafe();
+
+  // Convert context expenses to the format reviewHelpers expects
+  const contextExpenses: TripExpense[] = (tripCtx?.expenses || []).map(e => ({
+    id: e.id,
+    title: e.title,
+    amount: e.amount,
+    category: e.category,
+    paidBy: e.paidBy,
+    splitWith: e.splitWith,
+    date: e.date,
+    receiptUri: e.receiptUri,
+  }));
+
+  // Convert context squad to TripMember format
+  const contextMembers: TripMember[] = (tripCtx?.squad || []).map(m => ({
+    id: m.id,
+    name: m.name,
+    initial: m.initial,
+    color: m.color,
+  }));
+
+  // Convert context journal entries to JournalEntry format
+  const contextJournals: JournalEntry[] = Object.entries(tripCtx?.journalEntries || {}).map(([day, text]) => ({
+    day: parseInt(day, 10),
+    text,
+    mood: tripCtx?.journalMoods[parseInt(day, 10)],
+    photos: tripCtx?.journalPhotos[parseInt(day, 10)] || [],
+  }));
+
+  // Build itinerary from context for map
+  const contextItinerary = (tripCtx?.itinerary || []).map(d => ({
+    dayNumber: d.dayNumber,
+    items: d.items.map(item => ({
+      title: item.title,
+      time: item.time,
+      type: item.type,
+      location: item.location || '',
+    })),
+  }));
+
+  // Use real data if available, fall back to samples
+  const hasRealData = contextExpenses.length > 0 || contextMembers.length > 1;
+  const expenses = hasRealData ? contextExpenses : SAMPLE_EXPENSES;
+  const members = hasRealData ? contextMembers : SAMPLE_MEMBERS;
+  const journals = contextJournals.length > 0 ? contextJournals : SAMPLE_JOURNALS;
+  const itineraryForMap = contextItinerary.length > 0 ? contextItinerary : SAMPLE_ITINERARY;
+
+  const destination = searchParams.destination || tripCtx?.tripMeta.destination || 'Goa';
+  const dayCount = searchParams.dayCount
+    ? parseInt(searchParams.dayCount, 10)
+    : (tripCtx?.itinerary.length || 5);
+  const tripName = searchParams.tripName || tripCtx?.tripMeta.name || 'Goa Adventure';
 
   // ── Computed data ──────────────────────────────────────────────────
   const settlementData = calculateSettlements(expenses, members);
   const reportData = generateTripReport(expenses, members, dayCount, destination);
   const leaderboard = generateLeaderboard(expenses, members, journals);
-  const mapLocations = generateMapLocations(SAMPLE_ITINERARY);
+  const mapLocations = generateMapLocations(itineraryForMap);
   const totalDistance = estimateDistance(mapLocations.length);
 
   // ── State ──────────────────────────────────────────────────────────

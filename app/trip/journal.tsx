@@ -19,6 +19,7 @@ import * as Haptics from 'expo-haptics';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Fonts, FontSizes, Spacing, BorderRadius, Shadows } from '../../src/constants/theme';
+import { useTripContext } from '../../src/contexts/TripContext';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const PHOTO_COL_WIDTH = (SCREEN_WIDTH - Spacing.xl * 2 - Spacing.xl * 2 - 10) / 2;
@@ -73,16 +74,22 @@ export default function JournalScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ tripId?: string; destination?: string; startDate?: string; endDate?: string }>();
+  const tripCtx = useTripContext();
 
-  const TOTAL_DAYS = getTripDays(params.startDate, params.endDate);
-  const destination = params.destination || 'My Trip';
+  // Use dates from context if not passed as params
+  const startDate = params.startDate || tripCtx.tripMeta.startDate;
+  const endDate = params.endDate || tripCtx.tripMeta.endDate;
+  const TOTAL_DAYS = getTripDays(startDate, endDate);
+  const destination = params.destination || tripCtx.tripMeta.destination || 'My Trip';
 
   const [selectedDay, setSelectedDay] = useState(1);
   const [selectedMood, setSelectedMood] = useState<string | null>(null);
-  const [moodsByDay, setMoodsByDay] = useState<Record<number, string>>({});
   const [draftText, setDraftText] = useState('');
-  const [savedEntries, setSavedEntries] = useState<Record<number, string>>({});
-  const [photos, setPhotos] = useState<string[]>([]);
+
+  // Read from context — these are the persisted values
+  const savedEntries = tripCtx.journalEntries;
+  const moodsByDay = tripCtx.journalMoods;
+  const photos = tripCtx.journalPhotos[selectedDay] || [];
   const [showCamera, setShowCamera] = useState(false);
   const cameraRef = useRef<CameraView>(null);
   const [permission, requestPermission] = useCameraPermissions();
@@ -141,18 +148,13 @@ export default function JournalScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const newMood = selectedMood === moodKey ? null : moodKey;
     setSelectedMood(newMood);
-    setMoodsByDay((prev) => {
-      if (newMood) return { ...prev, [selectedDay]: newMood };
-      const next = { ...prev };
-      delete next[selectedDay];
-      return next;
-    });
+    tripCtx.setJournalMood(selectedDay, newMood);
   };
 
   const handleSave = () => {
     if (!draftText.trim()) return;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setSavedEntries((prev) => ({ ...prev, [selectedDay]: draftText.trim() }));
+    tripCtx.setJournalEntry(selectedDay, draftText.trim());
     setDraftText('');
   };
 
@@ -161,7 +163,7 @@ export default function JournalScreen() {
     try {
       const photo = await cameraRef.current.takePictureAsync();
       if (photo?.uri) {
-        setPhotos((prev) => [...prev, photo.uri]);
+        tripCtx.addJournalPhoto(selectedDay, photo.uri);
         setShowCamera(false);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
@@ -184,7 +186,7 @@ export default function JournalScreen() {
 
   const handleRemovePhoto = (index: number) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setPhotos((prev) => prev.filter((_, i) => i !== index));
+    tripCtx.removeJournalPhoto(selectedDay, index);
   };
 
   const handleVoiceNote = () => {
@@ -218,7 +220,7 @@ export default function JournalScreen() {
 
         {/* Date display */}
         <Text style={styles.headerDate}>
-          {getDateForDay(params.startDate, selectedDay)}
+          {getDateForDay(startDate, selectedDay)}
         </Text>
 
         {/* Mood selector row */}
@@ -495,7 +497,7 @@ export default function JournalScreen() {
                   </Text>
                   <View style={styles.savedEntryDivider} />
                   <Text style={styles.savedEntryDateLabel}>
-                    {getDateForDay(params.startDate, selectedDay)}
+                    {getDateForDay(startDate, selectedDay)}
                   </Text>
                 </View>
               </View>

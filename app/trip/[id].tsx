@@ -51,6 +51,7 @@ import {
   generateAIRescheduleSuggestions,
   type AIRescheduleSuggestion,
 } from '../../src/utils/liveHelpers';
+import { useTripContext } from '../../src/contexts/TripContext';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -198,8 +199,14 @@ export default function TripDetailScreen() {
         phase: 'planning' as const,
       };
 
+  // ── Shared context (persists across trip screen navigations) ─────────────
+  const tripCtx = useTripContext();
+
   // ── Squad state (dynamic, no mock data) ─────────────────────────────────
-  const [squad, setSquad] = useState<SquadMember[]>([YOU_MEMBER]);
+  const [squad, setSquad] = useState<SquadMember[]>(() => {
+    // Restore from context if available
+    return tripCtx.squad.length > 1 ? tripCtx.squad : [YOU_MEMBER];
+  });
 
   // ── Core state ─────────────────────────────────────────────────────────
   const [activePhase, setActivePhase] = useState<Phase>('plan');
@@ -208,8 +215,12 @@ export default function TripDetailScreen() {
   const [linkCopied, setLinkCopied] = useState(false);
 
   // ── Itinerary state machine ────────────────────────────────────────────
-  const [itineraryStatus, setItineraryStatus] = useState<ItineraryStatus>('empty');
-  const [itinerary, setItinerary] = useState<ItineraryDay[]>([]);
+  const [itineraryStatus, setItineraryStatus] = useState<ItineraryStatus>(() => {
+    return tripCtx.itinerary.length > 0 ? 'ready' : 'empty';
+  });
+  const [itinerary, setItinerary] = useState<ItineraryDay[]>(() => {
+    return tripCtx.itinerary.length > 0 ? tripCtx.itinerary : [];
+  });
   const [builtFromScratch, setBuiltFromScratch] = useState(false);
 
   // ── AI generation animation state ──────────────────────────────────────
@@ -268,6 +279,29 @@ export default function TripDetailScreen() {
       ])
     ).start();
   }, []);
+
+  // ── Sync local state → TripContext ──────────────────────────────────────
+  useEffect(() => {
+    tripCtx.setTripMeta({
+      id: params.id || '',
+      name: trip.name,
+      destination: cleanDestination(params.destination || trip.destination),
+      startDate: params.startDate,
+      endDate: params.endDate,
+      currency: params.currency,
+      tripType: params.tripType,
+    });
+  }, [params.id, params.destination, params.startDate, params.endDate]);
+
+  useEffect(() => {
+    tripCtx.setSquad(squad);
+  }, [squad]);
+
+  useEffect(() => {
+    if (itinerary.length > 0) {
+      tripCtx.setItinerary(itinerary);
+    }
+  }, [itinerary]);
 
   // ── Phase switching ────────────────────────────────────────────────────
   const switchPhase = (phase: Phase, index: number) => {
@@ -1545,7 +1579,7 @@ export default function TripDetailScreen() {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                     setDockExpanded(false);
                     Animated.spring(dockAnim, { toValue: 0, useNativeDriver: true, friction: 8 }).start();
-                    router.push({ pathname: '/trip/journal' as any, params: { tripId: params.id, destination: params.destination || '' } });
+                    router.push({ pathname: '/trip/journal' as any, params: { tripId: params.id, destination: params.destination || '', startDate: params.startDate || '', endDate: params.endDate || '' } });
                   }}
                   style={({ pressed }) => [styles.dockCard, pressed && { transform: [{ scale: 0.95 }] }]}
                 >
