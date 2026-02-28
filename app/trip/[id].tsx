@@ -18,6 +18,7 @@ import {
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
@@ -1035,6 +1036,7 @@ export default function TripDetailScreen() {
             .filter(s => !dismissedSuggestions.has(s.id));
 
           return (
+          <>
           <ScrollView
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.scrollContent}
@@ -1187,7 +1189,43 @@ export default function TripDetailScreen() {
                     const fullStars = Math.floor(item.rating);
                     const hasHalf = item.rating - fullStars >= 0.3;
                     return (
-                      <View key={`trend-${idx}`} style={styles.liveTrendingCard}>
+                      <Pressable
+                        key={`trend-${idx}`}
+                        style={({ pressed }) => [styles.liveTrendingCard, pressed && { transform: [{ scale: 0.95 }], opacity: 0.85 }]}
+                        onPress={() => {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                          Alert.alert(
+                            `Add "${item.tl}"?`,
+                            `${item.desc || item.l} — ${item.price}`,
+                            [
+                              { text: 'Cancel', style: 'cancel' },
+                              {
+                                text: 'Add to Plan',
+                                onPress: () => {
+                                  const newItem: ItineraryItem = {
+                                    id: `trend-${Date.now()}-${idx}`,
+                                    time: item.stype === 'food' ? '13:00' : '15:00',
+                                    title: item.tl,
+                                    emoji: '✨',
+                                    type: item.stype === 'food' ? 'food' : 'activity',
+                                    duration: '1.5h',
+                                    location: item.l,
+                                    aiTip: item.ai || `Trending — rated ${item.rating}/5`,
+                                    source: 'ai',
+                                  };
+                                  setItinerary(prev => prev.map(day =>
+                                    day.dayNumber === currentDay
+                                      ? { ...day, items: [...day.items, newItem] }
+                                      : day
+                                  ));
+                                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                                  Alert.alert('Added!', `"${item.tl}" added to today's plan`);
+                                },
+                              },
+                            ]
+                          );
+                        }}
+                      >
                         <View style={styles.liveTrendingIcon}>
                           <Ionicons
                             name={item.stype === 'food' ? 'restaurant-outline' : 'compass-outline'}
@@ -1208,53 +1246,67 @@ export default function TripDetailScreen() {
                           ))}
                         </View>
                         <Text style={styles.liveTrendingPrice}>{item.price}</Text>
-                      </View>
+                        <View style={styles.liveTrendingAddBtn}>
+                          <Ionicons name="add-circle" size={20} color={Colors.sage} />
+                          <Text style={styles.liveTrendingAddText}>Add</Text>
+                        </View>
+                      </Pressable>
                     );
                   })}
                 </ScrollView>
               </>
             )}
 
-            {/* ── E) Quick Actions ────────────────────────── */}
-            <View style={{ flexDirection: 'row', gap: 12, marginBottom: Spacing.xl }}>
+            {/* ── Bottom spacer for fixed bar ────────────── */}
+            <View style={{ height: 100 }} />
+          </ScrollView>
+
+          {/* ── E) Fixed Frosted Quick Actions Bar ──────── */}
+          <BlurView
+            intensity={80}
+            tint="light"
+            style={styles.liveBottomBar}
+          >
+            <View style={styles.liveBottomBarInner}>
               <Pressable
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   router.push({ pathname: '/trip/journal' as any, params: { tripId: params.id, destination: params.destination || '' } });
                 }}
-                style={({ pressed }) => [styles.liveQuickAction, pressed && { transform: [{ scale: 0.95 }] }]}
+                style={({ pressed }) => [styles.liveBottomAction, pressed && { transform: [{ scale: 0.92 }], opacity: 0.8 }]}
               >
-                <View style={styles.liveQuickActionIcon}>
-                  <Ionicons name="book-outline" size={24} color={Colors.sage} />
+                <View style={styles.liveBottomActionIconWrap}>
+                  <Ionicons name="book" size={22} color={Colors.white} />
                 </View>
-                <Text style={styles.liveQuickActionLabel}>Journal</Text>
-                <View style={styles.liveQuickActionSubIcons}>
-                  <Ionicons name="pencil-outline" size={14} color={Colors.textMuted} />
-                  <Ionicons name="camera-outline" size={14} color={Colors.textMuted} />
-                  <Ionicons name="mic-outline" size={14} color={Colors.textMuted} />
+                <Text style={styles.liveBottomActionLabel}>Journal</Text>
+                <View style={styles.liveBottomActionSubIcons}>
+                  <Ionicons name="pencil-outline" size={12} color={Colors.textMuted} />
+                  <Ionicons name="camera-outline" size={12} color={Colors.textMuted} />
+                  <Ionicons name="mic-outline" size={12} color={Colors.textMuted} />
                 </View>
               </Pressable>
+
+              <View style={styles.liveBottomDivider} />
+
               <Pressable
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   router.push({ pathname: '/trip/expenses' as any, params: { tripId: params.id, destination: params.destination || '' } });
                 }}
-                style={({ pressed }) => [styles.liveQuickAction, pressed && { transform: [{ scale: 0.95 }] }]}
+                style={({ pressed }) => [styles.liveBottomAction, pressed && { transform: [{ scale: 0.92 }], opacity: 0.8 }]}
               >
-                <View style={styles.liveQuickActionIcon}>
-                  <Ionicons name="wallet-outline" size={24} color={Colors.sage} />
+                <View style={[styles.liveBottomActionIconWrap, { backgroundColor: Colors.accent }]}>
+                  <Ionicons name="wallet" size={22} color={Colors.white} />
                 </View>
-                <Text style={styles.liveQuickActionLabel}>Expense</Text>
-                <View style={styles.liveQuickActionSubIcons}>
-                  <Ionicons name="card-outline" size={14} color={Colors.textMuted} />
-                  <Ionicons name="camera-outline" size={14} color={Colors.textMuted} />
+                <Text style={styles.liveBottomActionLabel}>Expense</Text>
+                <View style={styles.liveBottomActionSubIcons}>
+                  <Ionicons name="card-outline" size={12} color={Colors.textMuted} />
+                  <Ionicons name="camera-outline" size={12} color={Colors.textMuted} />
                 </View>
               </Pressable>
             </View>
-
-            {/* ── F) Bottom spacer ────────────────────────── */}
-            <View style={{ height: 120 }} />
-          </ScrollView>
+          </BlurView>
+          </>
           );
         })()}
 
@@ -2847,32 +2899,70 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.xs,
     color: Colors.sage,
   },
-  liveQuickAction: {
-    flex: 1,
-    backgroundColor: Colors.white,
-    borderRadius: BorderRadius.md,
-    padding: Spacing.md,
-    alignItems: 'center' as const,
-    ...Shadows.card,
+  liveBottomBar: {
+    position: 'absolute' as const,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    overflow: 'hidden' as const,
+    borderTopWidth: 0.5,
+    borderTopColor: 'rgba(0,0,0,0.06)',
   },
-  liveQuickActionIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
-    backgroundColor: `${Colors.sage}15`,
+  liveBottomBarInner: {
+    flexDirection: 'row' as const,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
-    marginBottom: 8,
+    paddingHorizontal: Spacing.lg,
+    paddingTop: 14,
+    paddingBottom: Platform.OS === 'ios' ? 30 : 16,
+    gap: 16,
   },
-  liveQuickActionLabel: {
+  liveBottomAction: {
+    flex: 1,
+    alignItems: 'center' as const,
+    paddingVertical: 8,
+  },
+  liveBottomActionIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: Colors.sage,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    marginBottom: 6,
+  },
+  liveBottomActionLabel: {
     fontFamily: Fonts.bodySemiBold,
     fontSize: FontSizes.sm,
     color: Colors.text,
-    marginBottom: 6,
+    marginBottom: 4,
   },
-  liveQuickActionSubIcons: {
+  liveBottomActionSubIcons: {
     flexDirection: 'row' as const,
-    gap: 8,
+    gap: 6,
+  },
+  liveBottomDivider: {
+    width: 1,
+    height: 50,
+    backgroundColor: 'rgba(0,0,0,0.08)',
+  },
+  liveTrendingAddBtn: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    gap: 4,
+    marginTop: 6,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    backgroundColor: `${Colors.sage}15`,
+  },
+  liveTrendingAddText: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: FontSizes.xs,
+    color: Colors.sage,
   },
   livePreTripAlert: {
     flexDirection: 'row' as const,
