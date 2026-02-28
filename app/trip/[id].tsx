@@ -15,6 +15,7 @@ import {
   LayoutAnimation,
   Platform,
   UIManager,
+  Linking,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -225,6 +226,10 @@ export default function TripDetailScreen() {
   const [expandedTips, setExpandedTips] = useState<Set<string>>(new Set());
   const [dismissedSuggestions, setDismissedSuggestions] = useState<Set<number>>(new Set());
   const [trendingDetail, setTrendingDetail] = useState<AISuggestion | null>(null);
+  const [liveEditItem, setLiveEditItem] = useState<ItineraryItem | null>(null);
+  const [liveEditTime, setLiveEditTime] = useState('');
+  const [liveEditTitle, setLiveEditTitle] = useState('');
+  const [showMapView, setShowMapView] = useState(false);
 
   // ── Form state for add/edit item ───────────────────────────────────────
   const [formTitle, setFormTitle] = useState('');
@@ -1082,8 +1087,85 @@ export default function TripDetailScreen() {
             </LinearGradient>
 
             {/* ── B) Today's Plan Timeline ────────────────── */}
-            <Text style={styles.liveSectionTitle}>TODAY'S PLAN</Text>
-            {todayPlan && todayPlan.items.length > 0 ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.sm }}>
+              <Text style={styles.liveSectionTitle}>TODAY'S PLAN</Text>
+              {todayPlan && todayPlan.items.length > 0 && (
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <Pressable
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setShowMapView(!showMapView);
+                    }}
+                    style={[styles.liveViewToggle, showMapView && styles.liveViewToggleActive]}
+                  >
+                    <Ionicons name={showMapView ? 'list' : 'map'} size={16} color={showMapView ? Colors.white : Colors.sage} />
+                    <Text style={[styles.liveViewToggleText, showMapView && { color: Colors.white }]}>
+                      {showMapView ? 'List' : 'Map'}
+                    </Text>
+                  </Pressable>
+                </View>
+              )}
+            </View>
+
+            {/* Map View */}
+            {showMapView && todayPlan && todayPlan.items.length > 0 ? (
+              <View style={styles.liveMapCard}>
+                <LinearGradient
+                  colors={['#E8F5E9', '#F1F8E9']}
+                  style={styles.liveMapGradient}
+                >
+                  <View style={styles.liveMapHeader}>
+                    <Ionicons name="navigate-circle" size={24} color={Colors.sage} />
+                    <Text style={styles.liveMapTitle}>Today's Route</Text>
+                    <Text style={styles.liveMapCount}>{todayPlan.items.length} stops</Text>
+                  </View>
+                  {todayPlan.items.map((item, i, arr) => (
+                    <Pressable
+                      key={`map-${item.id}`}
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        const query = encodeURIComponent(`${item.location || item.title}, ${destName}`);
+                        Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${query}`);
+                      }}
+                      style={({ pressed }) => [styles.liveMapStop, pressed && { backgroundColor: 'rgba(94,138,90,0.08)' }]}
+                    >
+                      <View style={styles.liveMapStopLeft}>
+                        <View style={[styles.liveMapStopNumber, { backgroundColor: CATEGORY_COLORS[item.type] || Colors.sage }]}>
+                          <Text style={styles.liveMapStopNumberText}>{i + 1}</Text>
+                        </View>
+                        {i < arr.length - 1 && <View style={styles.liveMapStopLine} />}
+                      </View>
+                      <View style={styles.liveMapStopContent}>
+                        <Text style={styles.liveMapStopTime}>{item.time}</Text>
+                        <Text style={styles.liveMapStopTitle}>{item.title}</Text>
+                        {item.location && (
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                            <Ionicons name="location" size={12} color={Colors.sage} />
+                            <Text style={styles.liveMapStopLocation}>{item.location}</Text>
+                          </View>
+                        )}
+                      </View>
+                      <View style={styles.liveMapStopAction}>
+                        <Ionicons name="navigate-outline" size={18} color={Colors.sage} />
+                      </View>
+                    </Pressable>
+                  ))}
+                  {/* Open all in Maps */}
+                  <Pressable
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                      const firstItem = todayPlan.items[0];
+                      const query = encodeURIComponent(`${firstItem.location || firstItem.title}, ${destName}`);
+                      Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${query}`);
+                    }}
+                    style={({ pressed }) => [styles.liveMapOpenAll, pressed && { opacity: 0.85 }]}
+                  >
+                    <Ionicons name="open-outline" size={16} color={Colors.sage} />
+                    <Text style={styles.liveMapOpenAllText}>Open in Google Maps</Text>
+                  </Pressable>
+                </LinearGradient>
+              </View>
+            ) : todayPlan && todayPlan.items.length > 0 ? (
               todayPlan.items.map((item, i, arr) => (
                 <View key={item.id} style={styles.itineraryItem}>
                   <View style={styles.timeline}>
@@ -1095,18 +1177,101 @@ export default function TripDetailScreen() {
                     />
                     {i < arr.length - 1 && <View style={styles.timelineLine} />}
                   </View>
-                  <View style={styles.itineraryCard}>
-                    <Text style={styles.itineraryTime}>{item.time}</Text>
+                  <Pressable
+                    style={({ pressed }) => [styles.itineraryCard, pressed && { backgroundColor: '#F9F6F2' }]}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    }}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <Text style={styles.itineraryTime}>{item.time}</Text>
+                      <View style={{ flexDirection: 'row', gap: 6 }}>
+                        {/* Map pin */}
+                        {item.location && (
+                          <Pressable
+                            onPress={() => {
+                              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                              const query = encodeURIComponent(`${item.location}, ${destName}`);
+                              Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${query}`);
+                            }}
+                            hitSlop={8}
+                            style={styles.liveItemAction}
+                          >
+                            <Ionicons name="navigate-outline" size={15} color={Colors.sage} />
+                          </Pressable>
+                        )}
+                        {/* Edit */}
+                        <Pressable
+                          onPress={() => {
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                            setLiveEditItem(item);
+                            setLiveEditTime(item.time);
+                            setLiveEditTitle(item.title);
+                          }}
+                          hitSlop={8}
+                          style={styles.liveItemAction}
+                        >
+                          <Ionicons name="create-outline" size={15} color={Colors.accent} />
+                        </Pressable>
+                        {/* Delete */}
+                        <Pressable
+                          onPress={() => {
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                            Alert.alert(
+                              'Remove Activity',
+                              `Remove "${item.title}" from today's plan?`,
+                              [
+                                { text: 'Cancel', style: 'cancel' },
+                                {
+                                  text: 'Remove',
+                                  style: 'destructive',
+                                  onPress: () => {
+                                    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                                    setItinerary(prev => prev.map(day =>
+                                      day.dayNumber === currentDay
+                                        ? { ...day, items: day.items.filter(it => it.id !== item.id) }
+                                        : day
+                                    ));
+                                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                                  },
+                                },
+                              ]
+                            );
+                          }}
+                          hitSlop={8}
+                          style={styles.liveItemAction}
+                        >
+                          <Ionicons name="trash-outline" size={15} color={Colors.error} />
+                        </Pressable>
+                      </View>
+                    </View>
                     <View style={styles.itineraryContent}>
                       <Text style={styles.itineraryEmoji}>{item.emoji}</Text>
-                      <Text style={styles.itineraryTitle}>{item.title}</Text>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.itineraryTitle}>{item.title}</Text>
+                        {item.location && (
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 2 }}>
+                            <Ionicons name="location-outline" size={11} color={Colors.textMuted} />
+                            <Text style={{ fontFamily: Fonts.body, fontSize: 11, color: Colors.textMuted }}>{item.location}</Text>
+                          </View>
+                        )}
+                      </View>
                     </View>
+                    {item.duration && (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
+                        <Ionicons name="time-outline" size={12} color={Colors.textMuted} />
+                        <Text style={{ fontFamily: Fonts.body, fontSize: 11, color: Colors.textMuted }}>{item.duration}</Text>
+                      </View>
+                    )}
                     {item.aiTip ? (
-                      <Text style={{ fontFamily: Fonts.body, fontStyle: 'italic', fontSize: FontSizes.xs, color: Colors.textMuted, marginTop: 4 }}>
-                        {item.aiTip}
-                      </Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 4, marginTop: 6, backgroundColor: `${Colors.sage}08`, padding: 8, borderRadius: 8 }}>
+                        <Ionicons name="sparkles" size={12} color={Colors.sage} style={{ marginTop: 1 }} />
+                        <Text style={{ fontFamily: Fonts.body, fontStyle: 'italic', fontSize: FontSizes.xs, color: Colors.textSecondary, flex: 1 }}>
+                          {item.aiTip}
+                        </Text>
+                      </View>
                     ) : null}
-                  </View>
+                  </Pressable>
                 </View>
               ))
             ) : (
@@ -1114,9 +1279,68 @@ export default function TripDetailScreen() {
                 <Ionicons name="calendar-outline" size={28} color={Colors.textMuted} />
                 <Text style={[styles.emptyDayText, { marginTop: 8 }]}>No plan yet for today</Text>
                 <Text style={{ fontFamily: Fonts.body, fontSize: FontSizes.xs, color: Colors.textMuted, marginTop: 4 }}>
-                  Switch to the Plan tab to create your itinerary
+                  Add activities from AI Suggestions or Trending below
                 </Text>
               </View>
+            )}
+
+            {/* ── Edit Item Modal ────────────────────────── */}
+            {liveEditItem && (
+              <Modal visible={!!liveEditItem} transparent animationType="fade" onRequestClose={() => setLiveEditItem(null)}>
+                <View style={styles.trendingModalOverlay}>
+                  <View style={[styles.trendingModalSheet, { maxHeight: '50%' as any }]}>
+                    <View style={{ alignItems: 'center', paddingTop: 10, paddingBottom: 6 }}>
+                      <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: 'rgba(0,0,0,0.15)' }} />
+                    </View>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.lg }}>
+                      <Text style={{ fontFamily: Fonts.heading, fontSize: FontSizes.lg, color: Colors.text }}>Edit Activity</Text>
+                      <Pressable onPress={() => setLiveEditItem(null)} style={styles.trendingModalClose}>
+                        <Ionicons name="close" size={22} color={Colors.textMuted} />
+                      </Pressable>
+                    </View>
+                    <Text style={{ fontFamily: Fonts.bodyMedium, fontSize: FontSizes.xs, color: Colors.textSecondary, letterSpacing: 1, marginBottom: 6 }}>TITLE</Text>
+                    <TextInput
+                      style={styles.liveEditInput}
+                      value={liveEditTitle}
+                      onChangeText={setLiveEditTitle}
+                      placeholder="Activity name"
+                      placeholderTextColor={Colors.textMuted}
+                    />
+                    <Text style={{ fontFamily: Fonts.bodyMedium, fontSize: FontSizes.xs, color: Colors.textSecondary, letterSpacing: 1, marginBottom: 6, marginTop: Spacing.md }}>TIME</Text>
+                    <TextInput
+                      style={styles.liveEditInput}
+                      value={liveEditTime}
+                      onChangeText={setLiveEditTime}
+                      placeholder="e.g. 09:00"
+                      placeholderTextColor={Colors.textMuted}
+                    />
+                    <Pressable
+                      onPress={() => {
+                        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                        setItinerary(prev => prev.map(day =>
+                          day.dayNumber === currentDay
+                            ? {
+                                ...day,
+                                items: day.items.map(it =>
+                                  it.id === liveEditItem.id
+                                    ? { ...it, title: liveEditTitle.trim() || it.title, time: liveEditTime.trim() || it.time }
+                                    : it
+                                ),
+                              }
+                            : day
+                        ));
+                        setLiveEditItem(null);
+                      }}
+                      style={({ pressed }) => [styles.trendingModalAddBtn, { marginTop: Spacing.lg }, pressed && { opacity: 0.85 }]}
+                    >
+                      <LinearGradient colors={['#5E8A5A', '#4A7A4A']} style={styles.trendingModalAddGradient}>
+                        <Ionicons name="checkmark-circle" size={20} color={Colors.white} />
+                        <Text style={styles.trendingModalAddText}>Save Changes</Text>
+                      </LinearGradient>
+                    </Pressable>
+                  </View>
+                </View>
+              </Modal>
             )}
 
             {/* ── C) AI Suggestions ────────────────────────── */}
@@ -3411,5 +3635,154 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.xs,
     color: 'rgba(255,255,255,0.9)',
     flex: 1,
+  },
+  // ── Today's Plan enhancements ──
+  liveViewToggle: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: `${Colors.sage}12`,
+    borderWidth: 1,
+    borderColor: `${Colors.sage}30`,
+  },
+  liveViewToggleActive: {
+    backgroundColor: Colors.sage,
+    borderColor: Colors.sage,
+  },
+  liveViewToggleText: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: 12,
+    color: Colors.sage,
+  },
+  liveItemAction: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: 'rgba(0,0,0,0.04)',
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+  },
+  liveEditInput: {
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 12,
+    fontFamily: Fonts.body,
+    fontSize: FontSizes.md,
+    color: Colors.text,
+  },
+  // ── Map View ──
+  liveMapCard: {
+    borderRadius: BorderRadius.lg,
+    overflow: 'hidden' as const,
+    marginBottom: Spacing.xl,
+    ...Shadows.card,
+  },
+  liveMapGradient: {
+    padding: Spacing.md,
+    borderRadius: BorderRadius.lg,
+  },
+  liveMapHeader: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 8,
+    marginBottom: Spacing.md,
+    paddingBottom: Spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(94,138,90,0.15)',
+  },
+  liveMapTitle: {
+    fontFamily: Fonts.heading,
+    fontSize: FontSizes.md,
+    color: Colors.text,
+    flex: 1,
+  },
+  liveMapCount: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: FontSizes.xs,
+    color: Colors.sage,
+    backgroundColor: 'rgba(94,138,90,0.12)',
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 10,
+  },
+  liveMapStop: {
+    flexDirection: 'row' as const,
+    alignItems: 'flex-start' as const,
+    paddingVertical: 8,
+    borderRadius: 10,
+    paddingHorizontal: 4,
+  },
+  liveMapStopLeft: {
+    alignItems: 'center' as const,
+    width: 32,
+    marginRight: 12,
+  },
+  liveMapStopNumber: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+  },
+  liveMapStopNumberText: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: 12,
+    color: Colors.white,
+  },
+  liveMapStopLine: {
+    width: 2,
+    height: 28,
+    backgroundColor: 'rgba(94,138,90,0.2)',
+    marginTop: 4,
+  },
+  liveMapStopContent: {
+    flex: 1,
+  },
+  liveMapStopTime: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: 11,
+    color: Colors.sage,
+    marginBottom: 2,
+  },
+  liveMapStopTitle: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: FontSizes.sm,
+    color: Colors.text,
+  },
+  liveMapStopLocation: {
+    fontFamily: Fonts.body,
+    fontSize: 11,
+    color: Colors.textMuted,
+  },
+  liveMapStopAction: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: 'rgba(94,138,90,0.1)',
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+  },
+  liveMapOpenAll: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    gap: 6,
+    marginTop: Spacing.sm,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: 'rgba(94,138,90,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(94,138,90,0.2)',
+  },
+  liveMapOpenAllText: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: FontSizes.xs,
+    color: Colors.sage,
   },
 });
