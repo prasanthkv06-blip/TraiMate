@@ -24,7 +24,7 @@ interface Expense {
   title: string;
   amount: number;
   paidBy: string;
-  emoji: string;
+  icon: string;
   category: string;
   date: string;
   splitWith: string[];
@@ -32,20 +32,12 @@ interface Expense {
 }
 
 const CATEGORIES = [
-  { id: 'food', emoji: '🍕', label: 'Food' },
-  { id: 'transport', emoji: '🚕', label: 'Transport' },
-  { id: 'stay', emoji: '🏨', label: 'Stay' },
-  { id: 'activity', emoji: '🎟️', label: 'Activity' },
-  { id: 'shopping', emoji: '🛍️', label: 'Shopping' },
-  { id: 'other', emoji: '📦', label: 'Other' },
-];
-
-const SAMPLE_EXPENSES: Expense[] = [
-  { id: '1', title: 'Sushi dinner at Tsukiji', amount: 124.50, paidBy: 'Alex', emoji: '🍣', category: 'food', date: 'Jun 16', splitWith: ['Alex', 'Sam', 'Jordan', 'Riley'] },
-  { id: '2', title: 'Airport transfer', amount: 65.00, paidBy: 'Sam', emoji: '🚕', category: 'transport', date: 'Jun 15', splitWith: ['Alex', 'Sam', 'Jordan', 'Riley'] },
-  { id: '3', title: 'Temple admission', amount: 32.00, paidBy: 'Jordan', emoji: '⛩️', category: 'activity', date: 'Jun 16', splitWith: ['Alex', 'Sam', 'Jordan'] },
-  { id: '4', title: 'Ryokan stay (2 nights)', amount: 480.00, paidBy: 'Alex', emoji: '🏨', category: 'stay', date: 'Jun 17', splitWith: ['Alex', 'Sam', 'Jordan', 'Riley'] },
-  { id: '5', title: 'Souvenir market', amount: 56.80, paidBy: 'Riley', emoji: '🎎', category: 'shopping', date: 'Jun 18', splitWith: ['Riley'] },
+  { id: 'food', icon: 'restaurant-outline' as const, label: 'Food' },
+  { id: 'transport', icon: 'car-outline' as const, label: 'Transport' },
+  { id: 'stay', icon: 'bed-outline' as const, label: 'Stay' },
+  { id: 'activity', icon: 'ticket-outline' as const, label: 'Activity' },
+  { id: 'shopping', icon: 'bag-outline' as const, label: 'Shopping' },
+  { id: 'other', icon: 'cube-outline' as const, label: 'Other' },
 ];
 
 const MEMBERS = ['Alex', 'Sam', 'Jordan', 'Riley'];
@@ -117,7 +109,7 @@ export default function ExpensesScreen() {
       title: newTitle.trim(),
       amount: parseFloat(newAmount) || 0,
       paidBy: 'You',
-      emoji: cat?.emoji || '📦',
+      icon: cat?.icon || 'cube-outline',
       category: newCategory,
       date: 'Today',
       splitWith: MEMBERS,
@@ -198,28 +190,36 @@ export default function ExpensesScreen() {
 
           {/* Expense list */}
           <Text style={styles.sectionTitle}>Recent</Text>
-          {expenses.map((expense) => (
-            <View key={expense.id} style={styles.expenseRow}>
-              <View style={styles.expenseIcon}>
-                <Text style={styles.expenseEmoji}>{expense.emoji}</Text>
-              </View>
-              <View style={styles.expenseInfo}>
-                <Text style={styles.expenseName}>{expense.title}</Text>
-                <Text style={styles.expenseMeta}>
-                  Paid by {expense.paidBy} · {expense.date}
-                </Text>
-              </View>
-              {expense.receiptUri && (
-                <Image source={{ uri: expense.receiptUri }} style={styles.expenseReceiptThumb} />
-              )}
-              <View style={styles.expenseAmountCol}>
-                <Text style={styles.expenseAmount}>${expense.amount.toFixed(2)}</Text>
-                <Text style={styles.expenseSplit}>
-                  ÷{expense.splitWith.length}
-                </Text>
-              </View>
+          {expenses.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Ionicons name="wallet-outline" size={48} color={Colors.accent} />
+              <Text style={styles.emptyStateTitle}>No expenses yet</Text>
+              <Text style={styles.emptyStateSub}>Tap + to add your first expense</Text>
             </View>
-          ))}
+          ) : (
+            expenses.map((expense) => (
+              <View key={expense.id} style={styles.expenseRow}>
+                <View style={styles.expenseIcon}>
+                  <Ionicons name={expense.icon as any} size={22} color={Colors.accent} />
+                </View>
+                <View style={styles.expenseInfo}>
+                  <Text style={styles.expenseName}>{expense.title}</Text>
+                  <Text style={styles.expenseMeta}>
+                    Paid by {expense.paidBy} · {expense.date}
+                  </Text>
+                </View>
+                {expense.receiptUri && (
+                  <Image source={{ uri: expense.receiptUri }} style={styles.expenseReceiptThumb} />
+                )}
+                <View style={styles.expenseAmountCol}>
+                  <Text style={styles.expenseAmount}>${expense.amount.toFixed(2)}</Text>
+                  <Text style={styles.expenseSplit}>
+                    ÷{expense.splitWith.length}
+                  </Text>
+                </View>
+              </View>
+            ))
+          )}
 
           <View style={{ height: 40 }} />
         </ScrollView>
@@ -263,7 +263,7 @@ export default function ExpensesScreen() {
                   onPress={() => setNewCategory(cat.id)}
                   style={[styles.catChip, newCategory === cat.id && styles.catChipActive]}
                 >
-                  <Text style={styles.catEmoji}>{cat.emoji}</Text>
+                  <Ionicons name={cat.icon} size={16} color={newCategory === cat.id ? Colors.accent : Colors.textSecondary} />
                   <Text style={[styles.catLabel, newCategory === cat.id && styles.catLabelActive]}>{cat.label}</Text>
                 </Pressable>
               ))}
@@ -357,8 +357,10 @@ const styles = StyleSheet.create({
   scanTitle: { fontFamily: Fonts.bodySemiBold, fontSize: FontSizes.md, color: Colors.accent },
   scanSub: { fontFamily: Fonts.body, fontSize: FontSizes.sm, color: Colors.textMuted, marginTop: 2 },
   expenseRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.white, padding: 14, borderRadius: BorderRadius.md, marginBottom: 8, ...Shadows.card },
+  emptyState: { backgroundColor: Colors.white, borderRadius: BorderRadius.lg, padding: Spacing.xl, alignItems: 'center', marginBottom: Spacing.lg, ...Shadows.card },
+  emptyStateTitle: { fontFamily: Fonts.heading, fontSize: FontSizes.lg, color: Colors.text, marginTop: Spacing.md },
+  emptyStateSub: { fontFamily: Fonts.body, fontSize: FontSizes.sm, color: Colors.textMuted, marginTop: Spacing.xs },
   expenseIcon: { width: 44, height: 44, borderRadius: 14, backgroundColor: Colors.background, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
-  expenseEmoji: { fontSize: 22 },
   expenseInfo: { flex: 1 },
   expenseName: { fontFamily: Fonts.bodySemiBold, fontSize: FontSizes.md, color: Colors.text },
   expenseMeta: { fontFamily: Fonts.body, fontSize: FontSizes.xs, color: Colors.textMuted, marginTop: 2 },
@@ -377,7 +379,6 @@ const styles = StyleSheet.create({
   catGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: Spacing.xl },
   catChip: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.white, paddingHorizontal: 14, paddingVertical: 8, borderRadius: BorderRadius.pill, borderWidth: 1.5, borderColor: Colors.border, gap: 4 },
   catChipActive: { borderColor: Colors.accent, backgroundColor: '#FDF6F0' },
-  catEmoji: { fontSize: 16 },
   catLabel: { fontFamily: Fonts.bodyMedium, fontSize: FontSizes.sm, color: Colors.textSecondary },
   catLabelActive: { color: Colors.accent, fontFamily: Fonts.bodySemiBold },
   modalActions: { flexDirection: 'row', gap: 12 },

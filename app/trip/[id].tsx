@@ -1135,31 +1135,35 @@ export default function TripDetailScreen() {
                         <Pressable
                           onPress={() => {
                             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                            if (suggestion.type === 'add') {
-                              // Add a new item to today's itinerary
-                              const newItem: ItineraryItem = {
-                                id: `ai-${Date.now()}`,
-                                time: '12:00',
-                                title: suggestion.title.replace('Add ', '').replace('a ', ''),
-                                emoji: '✨',
-                                type: 'activity',
-                                duration: '1h',
-                                aiTip: suggestion.reason,
-                                source: 'ai',
-                              };
-                              setItinerary(prev => prev.map(day =>
-                                day.dayNumber === currentDay
-                                  ? { ...day, items: [...day.items, newItem] }
-                                  : day
-                              ));
-                            }
+                            // Build new item from suggestion
+                            const newItem: ItineraryItem = {
+                              id: `ai-${Date.now()}`,
+                              time: suggestion.type === 'reschedule' ? '09:00' : '12:00',
+                              title: suggestion.title.replace(/^(Add |Move )/, '').replace(/^(a |an )/, ''),
+                              emoji: '✨',
+                              type: 'activity',
+                              duration: '1h',
+                              aiTip: suggestion.reason,
+                              source: 'ai',
+                            };
+                            setItinerary(prev => {
+                              const dayExists = prev.some(d => d.dayNumber === currentDay);
+                              if (dayExists) {
+                                return prev.map(day =>
+                                  day.dayNumber === currentDay
+                                    ? { ...day, items: [...day.items, newItem] }
+                                    : day
+                                );
+                              }
+                              // Create the day if it doesn't exist
+                              return [...prev, { id: `day-${currentDay}`, dayNumber: currentDay, title: `Day ${currentDay}`, items: [newItem] }];
+                            });
                             LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
                             setDismissedSuggestions(prev => new Set([...prev, suggestion.id]));
+                            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                             Alert.alert(
-                              suggestion.type === 'reschedule' ? 'Rescheduled!' : 'Added!',
-                              suggestion.type === 'reschedule'
-                                ? 'Activity has been rescheduled in your plan'
-                                : 'New activity added to today\'s plan'
+                              'Added to Today\'s Plan!',
+                              `"${newItem.title}" has been added to your itinerary`
                             );
                           }}
                           style={styles.liveSuggestionAccept}
@@ -1549,14 +1553,21 @@ export default function TripDetailScreen() {
                         aiTip: trendingDetail.ai || `Trending — rated ${trendingDetail.rating}/5`,
                         source: 'ai',
                       };
-                      setItinerary(prev => prev.map(day =>
-                        day.dayNumber === currentDay
-                          ? { ...day, items: [...day.items, newItem] }
-                          : day
-                      ));
+                      setItinerary(prev => {
+                        const dayExists = prev.some(d => d.dayNumber === currentDay);
+                        if (dayExists) {
+                          return prev.map(day =>
+                            day.dayNumber === currentDay
+                              ? { ...day, items: [...day.items, newItem] }
+                              : day
+                          );
+                        }
+                        return [...prev, { id: `day-${currentDay}`, dayNumber: currentDay, title: `Day ${currentDay}`, items: [newItem] }];
+                      });
                       setTrendingDetail(null);
                       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-                      Alert.alert('Added!', `"${trendingDetail.tl}" added to today's plan`);
+                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                      Alert.alert('Added to Today\'s Plan!', `"${trendingDetail.tl}" is now in your itinerary`);
                     }}
                     style={({ pressed }) => [styles.trendingModalAddBtn, pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] }]}
                   >
