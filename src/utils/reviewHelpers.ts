@@ -226,6 +226,7 @@ export function generateTripReport(
   members: TripMember[],
   dayCount: number,
   destination: string,
+  currencySymbol: string = '₹',
 ): TripReportData {
   // Category breakdown
   const categoryTotals: Record<string, number> = {};
@@ -276,8 +277,8 @@ export function generateTripReport(
     {
       icon: 'trophy',
       title: 'Budget Champion',
-      description: `You saved an estimated ₹${savingsVsSimilar.toLocaleString('en-IN')} vs similar trips to ${destination}`,
-      metric: `₹${savingsVsSimilar.toLocaleString('en-IN')} saved`,
+      description: `You saved an estimated ${currencySymbol}${savingsVsSimilar.toLocaleString()} vs similar trips to ${destination}`,
+      metric: `${currencySymbol}${savingsVsSimilar.toLocaleString()} saved`,
     },
   ];
 
@@ -305,7 +306,7 @@ export function generateTripReport(
   insights.push({
     icon: 'trending-down',
     title: 'Smart Spender',
-    detail: `Your avg daily spend of ₹${Math.round(avgPerDay).toLocaleString('en-IN')} is ${savingsVsSimilar > 0 ? 'below' : 'above'} average for ${destination}.`,
+    detail: `Your avg daily spend of ${currencySymbol}${Math.round(avgPerDay).toLocaleString()} is ${savingsVsSimilar > 0 ? 'below' : 'above'} average for ${destination}.`,
     color: Colors_sage,
   });
 
@@ -351,6 +352,7 @@ export function generateLeaderboard(
   expenses: TripExpense[],
   members: TripMember[],
   journals: JournalEntry[],
+  currencySymbol: string = '₹',
 ): LeaderboardEntry[] {
   const paidMap: Record<string, number> = {};
   const expCountMap: Record<string, number> = {};
@@ -378,7 +380,7 @@ export function generateLeaderboard(
     const member = members.find(m => m.name === bigSpender[0])!;
     entries.push({
       name: member.name, initial: member.initial, color: member.color,
-      stat: `₹${bigSpender[1].toLocaleString('en-IN')} paid`,
+      stat: `${currencySymbol}${bigSpender[1].toLocaleString()} paid`,
       value: bigSpender[1], badge: 'cash', badgeColor: '#E67E22', rank: 1,
     });
   }
@@ -393,7 +395,7 @@ export function generateLeaderboard(
     const keeper = avgExpenses[0];
     entries.push({
       name: keeper.member.name, initial: keeper.member.initial, color: keeper.member.color,
-      stat: `₹${Math.round(keeper.avg).toLocaleString('en-IN')} avg/expense`,
+      stat: `${currencySymbol}${Math.round(keeper.avg).toLocaleString()} avg/expense`,
       value: keeper.avg, badge: 'shield-checkmark', badgeColor: '#5E8A5A', rank: 2,
     });
   }
@@ -529,6 +531,7 @@ export function generateThread(
   dayCount: number,
   journals: JournalEntry[],
   totalSpent: number,
+  currencySymbol: string = '₹',
 ): string[] {
   const tweets: string[] = [];
 
@@ -542,7 +545,7 @@ export function generateThread(
     tweets.push(`Day ${entry.day} ${moodEmoji}\n\n${text}`);
   });
 
-  tweets.push(`Total damage: ₹${totalSpent.toLocaleString('en-IN')} for ${dayCount} days. Worth every single rupee.\n\nPlanned the entire trip with @TraiMate — honestly a game changer for group trips.`);
+  tweets.push(`Total damage: ${currencySymbol}${totalSpent.toLocaleString()} for ${dayCount} days. Worth every penny.\n\nPlanned the entire trip with @TraiMate — honestly a game changer for group trips.`);
 
   return tweets;
 }

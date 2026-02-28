@@ -17,6 +17,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Fonts, FontSizes, Spacing, BorderRadius, Shadows } from '../../src/constants/theme';
+import { useTripContextSafe, getCurrencySymbol } from '../../src/contexts/TripContext';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -75,6 +76,8 @@ export default function BookingsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ tripId?: string; destination?: string }>();
+  const tripCtx = useTripContextSafe();
+  const currSymbol = getCurrencySymbol(tripCtx?.tripMeta.currency);
 
   const [flightData, setFlightData] = useState<FlightData | null>(null);
   const [hotelData, setHotelData] = useState<HotelData | null>(null);
@@ -484,7 +487,7 @@ export default function BookingsScreen() {
                   <View style={styles.hotelDetails}>
                     <View style={styles.hotelDetailItem}>
                       <Text style={styles.hotelDetailLabel}>PRICE/NIGHT</Text>
-                      <Text style={styles.hotelDetailValue}>₹{hotelData.pricePerNight}</Text>
+                      <Text style={styles.hotelDetailValue}>{currSymbol}{hotelData.pricePerNight}</Text>
                     </View>
                     <View style={styles.hotelDetailDivider} />
                     <View style={styles.hotelDetailItem}>
@@ -533,7 +536,7 @@ export default function BookingsScreen() {
                   </View>
 
                   <View style={styles.formFieldFull}>
-                    <Text style={styles.formLabel}>PRICE PER NIGHT (₹)</Text>
+                    <Text style={styles.formLabel}>PRICE PER NIGHT ({currSymbol})</Text>
                     <TextInput
                       style={styles.formInput}
                       value={hPrice}

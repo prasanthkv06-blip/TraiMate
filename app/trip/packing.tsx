@@ -437,7 +437,7 @@ export default function PackingScreen() {
         ]}
       >
         <Pressable onPress={() => router.back()} hitSlop={20} style={styles.backButton}>
-          <Ionicons name="chevron-back" size={24} color={Colors.text} />
+          <Ionicons name="arrow-back" size={22} color={Colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>Packing List</Text>
         <View style={styles.aiBadge}>

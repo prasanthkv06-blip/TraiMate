@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -195,8 +195,8 @@ export default function ReviewScreen() {
 
   // ── Computed data ──────────────────────────────────────────────────
   const settlementData = calculateSettlements(expenses, members);
-  const reportData = generateTripReport(expenses, members, dayCount, destination);
-  const leaderboard = generateLeaderboard(expenses, members, journals);
+  const reportData = generateTripReport(expenses, members, dayCount, destination, currSymbol);
+  const leaderboard = generateLeaderboard(expenses, members, journals, currSymbol);
   const mapLocations = generateMapLocations(itineraryForMap);
   const totalDistance = estimateDistance(mapLocations.length);
 
@@ -207,6 +207,7 @@ export default function ReviewScreen() {
   const [selectedFormat, setSelectedFormat] = useState<string | null>(null);
   const [showReelModal, setShowReelModal] = useState(false);
   const [reelProgress, setReelProgress] = useState(0);
+  const reelTimeoutIds = useRef<ReturnType<typeof setTimeout>[]>([]);
   const [expandedInsight, setExpandedInsight] = useState<number | null>(null);
 
   // ── Animations ─────────────────────────────────────────────────────
@@ -275,11 +276,21 @@ export default function ReviewScreen() {
 
   const simulateReelGeneration = () => {
     setReelProgress(0);
+    reelTimeoutIds.current.forEach(id => clearTimeout(id));
+    reelTimeoutIds.current = [];
     const steps = [10, 25, 45, 65, 80, 95, 100];
     steps.forEach((p, i) => {
-      setTimeout(() => setReelProgress(p), (i + 1) * 600);
+      const tid = setTimeout(() => setReelProgress(p), (i + 1) * 600);
+      reelTimeoutIds.current.push(tid);
     });
   };
+
+  // Cleanup reel timeouts on unmount
+  useEffect(() => {
+    return () => {
+      reelTimeoutIds.current.forEach(id => clearTimeout(id));
+    };
+  }, []);
 
   const handleShareBlog = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -291,7 +302,7 @@ export default function ReviewScreen() {
 
   const handleShareThread = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const tweets = generateThread(destination, dayCount, journals, reportData.totalSpent);
+    const tweets = generateThread(destination, dayCount, journals, reportData.totalSpent, currSymbol);
     try {
       await Share.share({ title: `${destination} Thread`, message: tweets.join('\n\n---\n\n') });
     } catch {}
@@ -859,7 +870,7 @@ export default function ReviewScreen() {
           hitSlop={20}
           style={styles.backBtn}
         >
-          <Ionicons name="chevron-back" size={24} color={Colors.text} />
+          <Ionicons name="arrow-back" size={22} color={Colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>{destination} Recap</Text>
         <Pressable
@@ -972,7 +983,7 @@ export default function ReviewScreen() {
               </Pressable>
             </View>
             <ScrollView style={styles.blogScroll} showsVerticalScrollIndicator={false}>
-              {generateThread(destination, dayCount, journals, reportData.totalSpent).map((tweet, i) => (
+              {generateThread(destination, dayCount, journals, reportData.totalSpent, currSymbol).map((tweet, i) => (
                 <View key={i} style={styles.threadCard}>
                   <View style={styles.threadHeader}>
                     <View style={[styles.threadAvatar, { backgroundColor: Colors.accent }]}>
@@ -982,7 +993,7 @@ export default function ReviewScreen() {
                       <Text style={styles.threadAuthor}>You</Text>
                       <Text style={styles.threadHandle}>@traveller</Text>
                     </View>
-                    <Text style={styles.threadCount}>{i + 1}/{generateThread(destination, dayCount, journals, reportData.totalSpent).length}</Text>
+                    <Text style={styles.threadCount}>{i + 1}/{generateThread(destination, dayCount, journals, reportData.totalSpent, currSymbol).length}</Text>
                   </View>
                   <Text style={styles.threadText}>{tweet}</Text>
                 </View>
