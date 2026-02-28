@@ -14,7 +14,7 @@ import {
   Platform,
   UIManager,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
@@ -114,15 +114,33 @@ const SAMPLE_ITINERARY = [
 export default function ReviewScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const [activeTab, setActiveTab] = useState<SubTab>('settle');
+  const searchParams = useLocalSearchParams<{
+    tab?: string;
+    destination?: string;
+    tripName?: string;
+    dayCount?: string;
+  }>();
+
+  // ── Read initial tab from route params ─────────────────────────────
+  const initialTab = (searchParams.tab && SUB_TABS.some(t => t.key === searchParams.tab))
+    ? searchParams.tab as SubTab
+    : 'settle';
+  const [activeTab, setActiveTab] = useState<SubTab>(initialTab);
+
+  // Update tab when params change (e.g. navigating back with different tab)
+  useEffect(() => {
+    if (searchParams.tab && SUB_TABS.some(t => t.key === searchParams.tab)) {
+      setActiveTab(searchParams.tab as SubTab);
+    }
+  }, [searchParams.tab]);
 
   // ── Data (simulated — in production, pass via params or context) ────
   const expenses = SAMPLE_EXPENSES;
   const members = SAMPLE_MEMBERS;
   const journals = SAMPLE_JOURNALS;
-  const destination = 'Goa';
-  const dayCount = 5;
-  const tripName = 'Goa Adventure';
+  const destination = searchParams.destination || 'Goa';
+  const dayCount = searchParams.dayCount ? parseInt(searchParams.dayCount, 10) : 5;
+  const tripName = searchParams.tripName || 'Goa Adventure';
 
   // ── Computed data ──────────────────────────────────────────────────
   const settlementData = calculateSettlements(expenses, members);
@@ -143,53 +161,19 @@ export default function ReviewScreen() {
   // ── Animations ─────────────────────────────────────────────────────
   const contentOpacity = useRef(new Animated.Value(0)).current;
   const contentTranslateY = useRef(new Animated.Value(18)).current;
-  const tabOpacity = useRef(new Animated.Value(1)).current;
-  const tabTranslateY = useRef(new Animated.Value(0)).current;
-  const scoreAnim = useRef(new Animated.Value(0)).current;
-  const pulseAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     Animated.parallel([
-      Animated.timing(contentOpacity, { toValue: 1, duration: 500, useNativeDriver: true }),
-      Animated.timing(contentTranslateY, { toValue: 0, duration: 500, useNativeDriver: true }),
+      Animated.timing(contentOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
+      Animated.timing(contentTranslateY, { toValue: 0, duration: 400, useNativeDriver: true }),
     ]).start();
-
-    // Pulse animation for score
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1.05, duration: 1200, useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 1, duration: 1200, useNativeDriver: true }),
-      ]),
-    ).start();
   }, []);
-
-  useEffect(() => {
-    if (activeTab === 'report') {
-      scoreAnim.setValue(0);
-      Animated.spring(scoreAnim, {
-        toValue: 1,
-        tension: 40,
-        friction: 8,
-        useNativeDriver: true,
-      }).start();
-    }
-  }, [activeTab]);
 
   const switchTab = (tab: SubTab) => {
     if (tab === activeTab) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
-    Animated.parallel([
-      Animated.timing(tabOpacity, { toValue: 0, duration: 100, useNativeDriver: true }),
-      Animated.timing(tabTranslateY, { toValue: 8, duration: 100, useNativeDriver: true }),
-    ]).start(() => {
-      setActiveTab(tab);
-      tabTranslateY.setValue(-8);
-      Animated.parallel([
-        Animated.timing(tabOpacity, { toValue: 1, duration: 220, useNativeDriver: true }),
-        Animated.timing(tabTranslateY, { toValue: 0, duration: 220, useNativeDriver: true }),
-      ]).start();
-    });
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setActiveTab(tab);
   };
 
   // ── Handlers ───────────────────────────────────────────────────────
@@ -271,24 +255,27 @@ export default function ReviewScreen() {
 
     return (
       <>
-        {/* Per Person Share */}
-        <View style={[styles.gradientCardWrapper, { marginBottom: Spacing.lg }]}>
+        {/* Per Person Share — Compact */}
+        <View style={[styles.gradientCardWrapper, { marginBottom: Spacing.md }]}>
           <LinearGradient
             colors={['#5E8A5A', '#3D6B39']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
-            style={styles.settleHeroGradient}
+            style={{ flexDirection: 'row', alignItems: 'center', padding: Spacing.lg }}
           >
-            <View style={styles.settleHeroTop}>
-              <Ionicons name="wallet-outline" size={28} color="rgba(255,255,255,0.8)" />
-              <Text style={styles.settleHeroLabel}>Per Person Share</Text>
+            <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center', marginRight: 14 }}>
+              <Ionicons name="wallet-outline" size={22} color={Colors.white} />
             </View>
-            <Text style={styles.settleHeroAmount}>
-              ₹{settlementData.perPerson.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
-            </Text>
-            <Text style={styles.settleHeroSub}>
-              Total ₹{settlementData.totalSpent.toLocaleString('en-IN')} ÷ {members.length} travellers
-            </Text>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontFamily: Fonts.body, fontSize: FontSizes.xs, color: 'rgba(255,255,255,0.7)' }}>Per Person Share</Text>
+              <Text style={{ fontFamily: Fonts.heading, fontSize: FontSizes.xxl, color: Colors.white }}>
+                ₹{settlementData.perPerson.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+              </Text>
+            </View>
+            <View style={{ alignItems: 'flex-end' }}>
+              <Text style={{ fontFamily: Fonts.bodySemiBold, fontSize: FontSizes.sm, color: 'rgba(255,255,255,0.9)' }}>₹{settlementData.totalSpent.toLocaleString('en-IN')}</Text>
+              <Text style={{ fontFamily: Fonts.body, fontSize: 10, color: 'rgba(255,255,255,0.6)' }}>÷ {members.length} people</Text>
+            </View>
           </LinearGradient>
         </View>
 
@@ -393,46 +380,26 @@ export default function ReviewScreen() {
 
     return (
       <>
-        {/* Trip Score Card */}
-        <Animated.View style={[styles.tripScoreCard, { transform: [{ scale: pulseAnim }] }]}>
-          <LinearGradient
-            colors={['#B07A50', '#8B5E3C']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.tripScoreGradient}
-          >
-            <View style={styles.tripScoreInner}>
-              <View style={styles.tripScoreCircle}>
-                <Text style={styles.tripScoreNumber}>{reportData.tripScore}</Text>
-                <Text style={styles.tripScoreOf}>/100</Text>
-              </View>
-              <View style={styles.tripScoreText}>
-                <Text style={styles.tripScoreLabel}>Trip Score</Text>
-                <Text style={styles.tripScoreDesc}>
-                  {reportData.tripScore >= 80 ? 'Legendary trip!' :
-                   reportData.tripScore >= 60 ? 'Great adventure!' :
-                   'Solid trip!'}
-                </Text>
-              </View>
-            </View>
-            <View style={styles.tripScoreStats}>
-              <View style={styles.tripScoreStat}>
-                <Text style={styles.tripScoreStatNum}>{dayCount}</Text>
-                <Text style={styles.tripScoreStatLabel}>Days</Text>
-              </View>
-              <View style={styles.tripScoreStatDivider} />
-              <View style={styles.tripScoreStat}>
-                <Text style={styles.tripScoreStatNum}>{expenses.length}</Text>
-                <Text style={styles.tripScoreStatLabel}>Expenses</Text>
-              </View>
-              <View style={styles.tripScoreStatDivider} />
-              <View style={styles.tripScoreStat}>
-                <Text style={styles.tripScoreStatNum}>{members.length}</Text>
-                <Text style={styles.tripScoreStatLabel}>Mates</Text>
-              </View>
-            </View>
-          </LinearGradient>
-        </Animated.View>
+        {/* Trip Score — Compact */}
+        <View style={[styles.card, { flexDirection: 'row', alignItems: 'center', marginBottom: Spacing.md }]}>
+          <View style={styles.tripScoreCircle}>
+            <Text style={styles.tripScoreNumber}>{reportData.tripScore}</Text>
+            <Text style={styles.tripScoreOf}>/100</Text>
+          </View>
+          <View style={{ flex: 1, marginLeft: 14 }}>
+            <Text style={{ fontFamily: Fonts.heading, fontSize: FontSizes.lg, color: Colors.text }}>
+              {reportData.tripScore >= 80 ? 'Legendary Trip!' :
+               reportData.tripScore >= 60 ? 'Great Adventure!' :
+               'Solid Trip!'}
+            </Text>
+            <Text style={{ fontFamily: Fonts.body, fontSize: FontSizes.xs, color: Colors.textSecondary, marginTop: 2 }}>
+              {dayCount} days · {expenses.length} expenses · {members.length} mates
+            </Text>
+          </View>
+          <Pressable onPress={handleShareReport} hitSlop={10}>
+            <Ionicons name="share-outline" size={20} color={Colors.accent} />
+          </Pressable>
+        </View>
 
         {/* Savings Callout */}
         {reportData.savingsVsSimilar > 0 && (
@@ -580,18 +547,15 @@ export default function ReviewScreen() {
 
   const renderCreate = () => (
     <>
-      {/* Hero */}
-      <View style={styles.createHero}>
-        <LinearGradient
-          colors={['#1a1a2e', '#16213e']}
-          style={styles.createHeroGradient}
-        >
-          <Ionicons name="sparkles" size={36} color="#FFC947" />
-          <Text style={styles.createHeroTitle}>Share Your Trip</Text>
-          <Text style={styles.createHeroSub}>
-            AI transforms your journey into shareable content
-          </Text>
-        </LinearGradient>
+      {/* Hero — Compact */}
+      <View style={[styles.card, { flexDirection: 'row', alignItems: 'center', marginBottom: Spacing.md }]}>
+        <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: '#1a1a2e', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
+          <Ionicons name="sparkles" size={22} color="#FFC947" />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontFamily: Fonts.heading, fontSize: FontSizes.lg, color: Colors.text }}>Share Your Trip</Text>
+          <Text style={{ fontFamily: Fonts.body, fontSize: FontSizes.xs, color: Colors.textSecondary }}>AI transforms your journey into content</Text>
+        </View>
       </View>
 
       {/* Format Cards */}
@@ -662,18 +626,15 @@ export default function ReviewScreen() {
 
     return (
       <>
-        {/* Leaderboard Hero */}
-        <View style={styles.leaderboardHero}>
-          <LinearGradient
-            colors={['#B07A50', '#8B5E3C']}
-            style={styles.leaderboardHeroGradient}
-          >
-            <Ionicons name="trophy" size={40} color="#FFC947" />
-            <Text style={styles.leaderboardHeroTitle}>Trip Leaderboard</Text>
-            <Text style={styles.leaderboardHeroSub}>
-              {tripName} · {members.length} travellers
-            </Text>
-          </LinearGradient>
+        {/* Leaderboard Hero — Compact */}
+        <View style={[styles.card, { flexDirection: 'row', alignItems: 'center', marginBottom: Spacing.md }]}>
+          <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: '#FFC9471A', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
+            <Ionicons name="trophy" size={22} color="#E67E22" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontFamily: Fonts.heading, fontSize: FontSizes.lg, color: Colors.text }}>Trip Leaderboard</Text>
+            <Text style={{ fontFamily: Fonts.body, fontSize: FontSizes.xs, color: Colors.textSecondary }}>{tripName} · {members.length} travellers</Text>
+          </View>
         </View>
 
         {/* Leaderboard entries */}
@@ -736,31 +697,19 @@ export default function ReviewScreen() {
 
     return (
       <>
-        {/* Map Stats Hero */}
-        <View style={styles.mapHero}>
-          <LinearGradient
-            colors={['#1a535c', '#0b2d30']}
-            style={styles.mapHeroGradient}
-          >
-            <Ionicons name="navigate" size={32} color="#22C55E" />
-            <Text style={styles.mapHeroTitle}>Your Journey</Text>
-            <View style={styles.mapHeroStats}>
-              <View style={styles.mapHeroStat}>
-                <Text style={styles.mapHeroStatNum}>{uniqueLocations.length}</Text>
-                <Text style={styles.mapHeroStatLabel}>Places</Text>
-              </View>
-              <View style={styles.mapHeroStatDivider} />
-              <View style={styles.mapHeroStat}>
-                <Text style={styles.mapHeroStatNum}>{totalDistance}+</Text>
-                <Text style={styles.mapHeroStatLabel}>km Covered</Text>
-              </View>
-              <View style={styles.mapHeroStatDivider} />
-              <View style={styles.mapHeroStat}>
-                <Text style={styles.mapHeroStatNum}>{dayCount}</Text>
-                <Text style={styles.mapHeroStatLabel}>Days</Text>
-              </View>
+        {/* Map Stats — Compact row */}
+        <View style={{ flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.md }}>
+          {[
+            { icon: 'location' as const, num: `${uniqueLocations.length}`, label: 'Places', color: '#22C55E' },
+            { icon: 'speedometer' as const, num: `${totalDistance}+`, label: 'km', color: '#4A8BA8' },
+            { icon: 'calendar' as const, num: `${dayCount}`, label: 'Days', color: '#E67E22' },
+          ].map((s) => (
+            <View key={s.label} style={[styles.card, { flex: 1, alignItems: 'center', paddingVertical: 14 }]}>
+              <Ionicons name={s.icon} size={18} color={s.color} style={{ marginBottom: 4 }} />
+              <Text style={{ fontFamily: Fonts.bodySemiBold, fontSize: FontSizes.lg, color: Colors.text }}>{s.num}</Text>
+              <Text style={{ fontFamily: Fonts.body, fontSize: 10, color: Colors.textMuted }}>{s.label}</Text>
             </View>
-          </LinearGradient>
+          ))}
         </View>
 
         {/* Route Timeline */}
@@ -851,7 +800,7 @@ export default function ReviewScreen() {
         >
           <Ionicons name="chevron-back" size={24} color={Colors.text} />
         </Pressable>
-        <Text style={styles.headerTitle}>Recap</Text>
+        <Text style={styles.headerTitle}>{destination} Recap</Text>
         <Pressable
           onPress={handleShareReport}
           hitSlop={20}
@@ -889,11 +838,8 @@ export default function ReviewScreen() {
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
-          key={activeTab}
         >
-          <Animated.View style={{ opacity: tabOpacity, transform: [{ translateY: tabTranslateY }] }}>
-            {renderContent()}
-          </Animated.View>
+          {renderContent()}
           <View style={{ height: insets.bottom + 40 }} />
         </ScrollView>
       </Animated.View>
@@ -1168,33 +1114,6 @@ const styles = StyleSheet.create({
 
   // ═══ SETTLE TAB ═══
 
-  settleHeroGradient: {
-    padding: Spacing.xl,
-    alignItems: 'center',
-  },
-  settleHeroTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 8,
-  },
-  settleHeroLabel: {
-    fontFamily: Fonts.bodyMedium,
-    fontSize: FontSizes.sm,
-    color: 'rgba(255,255,255,0.85)',
-  },
-  settleHeroAmount: {
-    fontFamily: Fonts.heading,
-    fontSize: 44,
-    color: Colors.white,
-    marginVertical: Spacing.xs,
-  },
-  settleHeroSub: {
-    fontFamily: Fonts.body,
-    fontSize: FontSizes.sm,
-    color: 'rgba(255,255,255,0.7)',
-  },
-
   memberCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1325,79 +1244,24 @@ const styles = StyleSheet.create({
 
   // ═══ AI REPORT TAB ═══
 
-  tripScoreCard: {
-    marginBottom: Spacing.lg,
-    borderRadius: BorderRadius.lg,
-    overflow: 'hidden',
-    ...Shadows.cardHover,
-  },
-  tripScoreGradient: {
-    padding: Spacing.xl,
-  },
-  tripScoreInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: Spacing.lg,
-  },
   tripScoreCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: Colors.accent + '15',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: Spacing.lg,
   },
   tripScoreNumber: {
     fontFamily: Fonts.heading,
-    fontSize: 32,
-    color: Colors.white,
+    fontSize: FontSizes.xxl,
+    color: Colors.accent,
   },
   tripScoreOf: {
     fontFamily: Fonts.body,
-    fontSize: FontSizes.xs,
-    color: 'rgba(255,255,255,0.6)',
-    marginTop: -4,
-  },
-  tripScoreText: {
-    flex: 1,
-  },
-  tripScoreLabel: {
-    fontFamily: Fonts.bodyMedium,
-    fontSize: FontSizes.sm,
-    color: 'rgba(255,255,255,0.7)',
-  },
-  tripScoreDesc: {
-    fontFamily: Fonts.heading,
-    fontSize: FontSizes.xl,
-    color: Colors.white,
-    marginTop: 2,
-  },
-  tripScoreStats: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingTop: Spacing.lg,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.15)',
-  },
-  tripScoreStat: {
-    alignItems: 'center',
-  },
-  tripScoreStatNum: {
-    fontFamily: Fonts.bodySemiBold,
-    fontSize: FontSizes.xl,
-    color: Colors.white,
-  },
-  tripScoreStatLabel: {
-    fontFamily: Fonts.body,
-    fontSize: FontSizes.xs,
-    color: 'rgba(255,255,255,0.6)',
-    marginTop: 2,
-  },
-  tripScoreStatDivider: {
-    width: 1,
-    height: 28,
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    fontSize: 10,
+    color: Colors.textMuted,
+    marginTop: -3,
   },
 
   savingsCard: {
@@ -1633,30 +1497,6 @@ const styles = StyleSheet.create({
 
   // ═══ CREATE TAB ═══
 
-  createHero: {
-    marginBottom: Spacing.lg,
-    borderRadius: BorderRadius.lg,
-    overflow: 'hidden',
-    ...Shadows.cardHover,
-  },
-  createHeroGradient: {
-    padding: Spacing.xl,
-    alignItems: 'center',
-  },
-  createHeroTitle: {
-    fontFamily: Fonts.heading,
-    fontSize: FontSizes.xxl,
-    color: Colors.white,
-    marginTop: 12,
-  },
-  createHeroSub: {
-    fontFamily: Fonts.body,
-    fontSize: FontSizes.sm,
-    color: 'rgba(255,255,255,0.7)',
-    marginTop: 6,
-    textAlign: 'center',
-  },
-
   formatCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1724,29 +1564,6 @@ const styles = StyleSheet.create({
   },
 
   // ═══ LEADERBOARD TAB ═══
-
-  leaderboardHero: {
-    marginBottom: Spacing.lg,
-    borderRadius: BorderRadius.lg,
-    overflow: 'hidden',
-    ...Shadows.cardHover,
-  },
-  leaderboardHeroGradient: {
-    padding: Spacing.xl,
-    alignItems: 'center',
-  },
-  leaderboardHeroTitle: {
-    fontFamily: Fonts.heading,
-    fontSize: FontSizes.xxl,
-    color: Colors.white,
-    marginTop: 10,
-  },
-  leaderboardHeroSub: {
-    fontFamily: Fonts.body,
-    fontSize: FontSizes.sm,
-    color: 'rgba(255,255,255,0.7)',
-    marginTop: 4,
-  },
 
   leaderboardCard: {
     flexDirection: 'row',
@@ -1842,51 +1659,6 @@ const styles = StyleSheet.create({
   },
 
   // ═══ MAP TAB ═══
-
-  mapHero: {
-    marginBottom: Spacing.lg,
-    borderRadius: BorderRadius.lg,
-    overflow: 'hidden',
-    ...Shadows.cardHover,
-  },
-  mapHeroGradient: {
-    padding: Spacing.xl,
-    alignItems: 'center',
-  },
-  mapHeroTitle: {
-    fontFamily: Fonts.heading,
-    fontSize: FontSizes.xxl,
-    color: Colors.white,
-    marginTop: 10,
-    marginBottom: 14,
-  },
-  mapHeroStats: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    width: '100%',
-    paddingTop: Spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.15)',
-  },
-  mapHeroStat: {
-    alignItems: 'center',
-  },
-  mapHeroStatNum: {
-    fontFamily: Fonts.bodySemiBold,
-    fontSize: FontSizes.xl,
-    color: Colors.white,
-  },
-  mapHeroStatLabel: {
-    fontFamily: Fonts.body,
-    fontSize: FontSizes.xs,
-    color: 'rgba(255,255,255,0.6)',
-    marginTop: 2,
-  },
-  mapHeroStatDivider: {
-    width: 1,
-    height: 28,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-  },
 
   mapDaySection: {
     marginBottom: Spacing.lg,

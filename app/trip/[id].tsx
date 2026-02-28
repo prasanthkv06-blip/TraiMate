@@ -1829,61 +1829,70 @@ export default function TripDetailScreen() {
         {/* ══════════════════════════════════════════════════════
             RECAP TAB
         ══════════════════════════════════════════════════════ */}
-        {activePhase === 'review' && (
+        {activePhase === 'review' && (() => {
+          const destName = cleanDestination(params.destination || trip.destination);
+          const dayTotal = itinerary.length || 5;
+          const activityTotal = itinerary.reduce((s, d) => s + d.items.length, 0);
+          const recapParams = `destination=${encodeURIComponent(destName)}&tripName=${encodeURIComponent(trip.name)}&dayCount=${dayTotal}`;
+
+          const RECAP_ACTIONS = [
+            { icon: 'swap-horizontal' as const, tab: 'settle', label: 'Settle Up', desc: 'Split & settle expenses', gradient: ['#5E8A5A', '#3D6B39'] as const },
+            { icon: 'analytics' as const, tab: 'report', label: 'AI Report', desc: 'Smart trip insights', gradient: ['#1a1a2e', '#16213e'] as const },
+            { icon: 'sparkles' as const, tab: 'create', label: 'Create', desc: 'Reel, Blog & Story', gradient: ['#833AB4', '#C13584'] as const },
+            { icon: 'podium' as const, tab: 'leaderboard', label: 'Leaderboard', desc: 'Who won the trip?', gradient: ['#E67E22', '#D35400'] as const },
+            { icon: 'map' as const, tab: 'map', label: 'Trip Map', desc: 'Your journey route', gradient: ['#1a535c', '#0b2d30'] as const },
+            { icon: 'share-social' as const, tab: 'share', label: 'Share Trip', desc: 'Tell the world', gradient: ['#4A8BA8', '#2C6E84'] as const },
+          ];
+
+          return (
           <ScrollView
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.scrollContent}
           >
-            {/* Hero Card */}
-            <View style={{ borderRadius: BorderRadius.lg, overflow: 'hidden', marginBottom: Spacing.lg, ...Shadows.cardHover }}>
+            {/* Trip-Specific Hero — Compact */}
+            <View style={{ borderRadius: BorderRadius.lg, overflow: 'hidden', marginBottom: Spacing.md, ...Shadows.cardHover }}>
               <LinearGradient
-                colors={['#B07A50', '#8B5E3C']}
+                colors={['#1a1a2e', '#16213e']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
-                style={{ padding: Spacing.xl, alignItems: 'center' }}
+                style={{ padding: Spacing.lg }}
               >
-                <Ionicons name="sparkles" size={40} color="#FFC947" style={{ marginBottom: 8 }} />
-                <Text style={{ fontFamily: Fonts.heading, fontSize: FontSizes.xxl, color: Colors.white }}>Trip Recap</Text>
-                <Text style={{ fontFamily: Fonts.body, fontSize: FontSizes.sm, color: 'rgba(255,255,255,0.8)', marginTop: 6, textAlign: 'center' }}>
-                  {itinerary.length || 5} days of adventure, memories, and stories
-                </Text>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-around', width: '100%', marginTop: Spacing.lg, paddingTop: Spacing.md, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.15)' }}>
-                  <View style={{ alignItems: 'center' }}>
-                    <Text style={{ fontFamily: Fonts.bodySemiBold, fontSize: FontSizes.xl, color: Colors.white }}>{itinerary.length || 5}</Text>
-                    <Text style={{ fontFamily: Fonts.body, fontSize: FontSizes.xs, color: 'rgba(255,255,255,0.6)' }}>Days</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 14 }}>
+                  <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: 'rgba(255,201,71,0.15)', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
+                    <Ionicons name="sparkles" size={22} color="#FFC947" />
                   </View>
-                  <View style={{ width: 1, height: 28, backgroundColor: 'rgba(255,255,255,0.15)' }} />
-                  <View style={{ alignItems: 'center' }}>
-                    <Text style={{ fontFamily: Fonts.bodySemiBold, fontSize: FontSizes.xl, color: Colors.white }}>{squad.length}</Text>
-                    <Text style={{ fontFamily: Fonts.body, fontSize: FontSizes.xs, color: 'rgba(255,255,255,0.6)' }}>Mates</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontFamily: Fonts.body, fontSize: 10, color: 'rgba(255,201,71,0.8)', letterSpacing: 2, textTransform: 'uppercase' }}>Your Journey</Text>
+                    <Text style={{ fontFamily: Fonts.heading, fontSize: FontSizes.xxl, color: Colors.white }}>{destName}</Text>
                   </View>
-                  <View style={{ width: 1, height: 28, backgroundColor: 'rgba(255,255,255,0.15)' }} />
-                  <View style={{ alignItems: 'center' }}>
-                    <Text style={{ fontFamily: Fonts.bodySemiBold, fontSize: FontSizes.xl, color: Colors.white }}>{itinerary.reduce((s, d) => s + d.items.length, 0)}</Text>
-                    <Text style={{ fontFamily: Fonts.body, fontSize: FontSizes.xs, color: 'rgba(255,255,255,0.6)' }}>Activities</Text>
-                  </View>
+                </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-around', paddingTop: 12, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.1)' }}>
+                  {[
+                    { icon: 'calendar-outline' as const, val: dayTotal, label: 'Days' },
+                    { icon: 'people-outline' as const, val: squad.length, label: 'Mates' },
+                    { icon: 'flash-outline' as const, val: activityTotal || 15, label: 'Activities' },
+                  ].map((s) => (
+                    <View key={s.label} style={{ alignItems: 'center' }}>
+                      <Ionicons name={s.icon} size={14} color="rgba(255,201,71,0.7)" style={{ marginBottom: 2 }} />
+                      <Text style={{ fontFamily: Fonts.bodySemiBold, fontSize: FontSizes.lg, color: Colors.white }}>{s.val}</Text>
+                      <Text style={{ fontFamily: Fonts.body, fontSize: 10, color: 'rgba(255,255,255,0.5)' }}>{s.label}</Text>
+                    </View>
+                  ))}
                 </View>
               </LinearGradient>
             </View>
 
             {/* Quick Actions Grid */}
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: Spacing.lg }}>
-              {[
-                { icon: 'swap-horizontal' as const, label: 'Settle', desc: 'Split expenses', gradient: ['#5E8A5A', '#3D6B39'] as const },
-                { icon: 'analytics' as const, label: 'AI Report', desc: 'Trip insights', gradient: ['#B07A50', '#8B5E3C'] as const },
-                { icon: 'sparkles' as const, label: 'Create', desc: 'Reel & Blog', gradient: ['#833AB4', '#FD1D1D'] as const },
-                { icon: 'podium' as const, label: 'Board', desc: 'Leaderboard', gradient: ['#E67E22', '#D35400'] as const },
-                { icon: 'map' as const, label: 'Map', desc: 'Your journey', gradient: ['#1a535c', '#0b2d30'] as const },
-                { icon: 'share-social' as const, label: 'Share', desc: 'Share trip', gradient: ['#4A8BA8', '#2C6E84'] as const },
-              ].map((action, i) => (
+              {RECAP_ACTIONS.map((action) => (
                 <Pressable
-                  key={action.label}
+                  key={action.tab}
                   onPress={() => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                    if (action.label === 'Share') {
-                      Share.share({ message: `Check out my ${trip.name} trip to ${trip.destination}! Planned with TraiMate.` }).catch(() => {});
+                    if (action.tab === 'share') {
+                      Share.share({ message: `Just wrapped up an amazing trip to ${destName}! ${dayTotal} days, ${squad.length} friends, countless memories. Planned with TraiMate.` }).catch(() => {});
                     } else {
-                      router.push('/trip/review' as any);
+                      router.push(`/trip/review?tab=${action.tab}&${recapParams}` as any);
                     }
                   }}
                   style={({ pressed }) => [{
@@ -1911,7 +1920,7 @@ export default function TripDetailScreen() {
 
             {/* Open Full Recap CTA */}
             <Pressable
-              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push('/trip/review' as any); }}
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push(`/trip/review?tab=settle&${recapParams}` as any); }}
               style={{ borderRadius: BorderRadius.lg, overflow: 'hidden', marginBottom: Spacing.xl, ...Shadows.card }}
             >
               <LinearGradient
@@ -1928,7 +1937,8 @@ export default function TripDetailScreen() {
 
             <View style={{ height: 40 }} />
           </ScrollView>
-        )}
+          );
+        })()}
       </Animated.View>
 
       {/* ── AI Floating Chatbot (Plan & Live tabs) ────────── */}
