@@ -1130,7 +1130,32 @@ export default function TripDetailScreen() {
                         <Pressable
                           onPress={() => {
                             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                            Alert.alert('Added!', 'Suggestion applied to your itinerary');
+                            if (suggestion.type === 'add') {
+                              // Add a new item to today's itinerary
+                              const newItem: ItineraryItem = {
+                                id: `ai-${Date.now()}`,
+                                time: '12:00',
+                                title: suggestion.title.replace('Add ', '').replace('a ', ''),
+                                emoji: '✨',
+                                type: 'activity',
+                                duration: '1h',
+                                aiTip: suggestion.reason,
+                                source: 'ai',
+                              };
+                              setItinerary(prev => prev.map(day =>
+                                day.dayNumber === currentDay
+                                  ? { ...day, items: [...day.items, newItem] }
+                                  : day
+                              ));
+                            }
+                            LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                            setDismissedSuggestions(prev => new Set([...prev, suggestion.id]));
+                            Alert.alert(
+                              suggestion.type === 'reschedule' ? 'Rescheduled!' : 'Added!',
+                              suggestion.type === 'reschedule'
+                                ? 'Activity has been rescheduled in your plan'
+                                : 'New activity added to today\'s plan'
+                            );
                           }}
                           style={styles.liveSuggestionAccept}
                         >
