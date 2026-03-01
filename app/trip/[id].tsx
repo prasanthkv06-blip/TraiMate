@@ -806,26 +806,36 @@ export default function TripDetailScreen() {
           </View>
         </View>
 
-        {/* Trip options dropdown menu */}
+        {/* Trip options dropdown menu — compact grid */}
         {showTripMenu && (
           <Pressable style={styles.tripMenuOverlay} onPress={() => setShowTripMenu(false)}>
             <View style={styles.tripMenuDropdown}>
-              {[
-                { label: 'Share Trip', icon: 'share-outline' as const, destructive: false, onPress: () => { setShowTripMenu(false); Share.share({ message: `Check out my trip to ${trip.destination}! ✈️` }); } },
-                { label: 'Edit Trip Name', icon: 'create-outline' as const, destructive: false, onPress: () => { setShowTripMenu(false); Alert.alert('Edit Trip Name', 'Coming Soon'); } },
-                { label: 'Duplicate Trip', icon: 'copy-outline' as const, destructive: false, onPress: () => { setShowTripMenu(false); Alert.alert('Duplicate Trip', 'Coming Soon'); } },
-                { label: 'Export Itinerary', icon: 'download-outline' as const, destructive: false, onPress: () => { setShowTripMenu(false); Alert.alert('Export Itinerary', 'Coming Soon'); } },
-                { label: 'Delete Trip', icon: 'trash-outline' as const, destructive: true, onPress: () => { setShowTripMenu(false); Alert.alert('Delete Trip', 'Coming Soon'); } },
-              ].map((item, i) => (
-                <Pressable
-                  key={item.label}
-                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); item.onPress(); }}
-                  style={[styles.tripMenuItem, i > 0 && styles.tripMenuItemBorder]}
-                >
-                  <Ionicons name={item.icon} size={18} color={item.destructive ? Colors.error : Colors.text} />
-                  <Text style={[styles.tripMenuLabel, item.destructive && { color: Colors.error }]}>{item.label}</Text>
-                </Pressable>
-              ))}
+              <View style={styles.tripMenuGrid}>
+                {[
+                  { label: 'Share', icon: 'share-outline' as const, destructive: false, onPress: () => { setShowTripMenu(false); Share.share({ message: `Check out my trip to ${trip.destination}! ✈️` }); } },
+                  { label: 'Rename', icon: 'create-outline' as const, destructive: false, onPress: () => { setShowTripMenu(false); Alert.alert('Edit Trip Name', 'Coming Soon'); } },
+                  { label: 'Duplicate', icon: 'copy-outline' as const, destructive: false, onPress: () => { setShowTripMenu(false); Alert.alert('Duplicate Trip', 'Coming Soon'); } },
+                  { label: 'Export', icon: 'download-outline' as const, destructive: false, onPress: () => { setShowTripMenu(false); Alert.alert('Export Itinerary', 'Coming Soon'); } },
+                ].map((item) => (
+                  <Pressable
+                    key={item.label}
+                    onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); item.onPress(); }}
+                    style={styles.tripMenuGridItem}
+                  >
+                    <View style={styles.tripMenuGridIcon}>
+                      <Ionicons name={item.icon} size={18} color={Colors.text} />
+                    </View>
+                    <Text style={styles.tripMenuGridLabel}>{item.label}</Text>
+                  </Pressable>
+                ))}
+              </View>
+              <Pressable
+                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowTripMenu(false); Alert.alert('Delete Trip', 'Coming Soon'); }}
+                style={styles.tripMenuDeleteRow}
+              >
+                <Ionicons name="trash-outline" size={15} color={Colors.error} />
+                <Text style={styles.tripMenuDeleteLabel}>Delete Trip</Text>
+              </Pressable>
             </View>
           </Pressable>
         )}
@@ -2681,9 +2691,9 @@ const styles = StyleSheet.create({
     top: 52,
     right: Spacing.md,
     backgroundColor: Colors.white,
-    borderRadius: BorderRadius.md,
-    paddingVertical: 4,
-    minWidth: 200,
+    borderRadius: BorderRadius.lg,
+    padding: 10,
+    width: 180,
     shadowColor: '#2C2520',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
@@ -2691,21 +2701,45 @@ const styles = StyleSheet.create({
     elevation: 8,
     zIndex: 101,
   },
-  tripMenuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    paddingVertical: 12,
-    paddingHorizontal: Spacing.md,
+  tripMenuGrid: {
+    flexDirection: 'row' as const,
+    flexWrap: 'wrap' as const,
+    gap: 4,
   },
-  tripMenuItemBorder: {
+  tripMenuGridItem: {
+    width: '47%' as any,
+    alignItems: 'center' as const,
+    paddingVertical: 10,
+    borderRadius: BorderRadius.md,
+  },
+  tripMenuGridIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    marginBottom: 4,
+  },
+  tripMenuGridLabel: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: 11,
+    color: Colors.text,
+  },
+  tripMenuDeleteRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    gap: 5,
+    marginTop: 6,
+    paddingVertical: 8,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: Colors.border,
   },
-  tripMenuLabel: {
-    fontFamily: Fonts.bodyMedium,
-    fontSize: FontSizes.sm,
-    color: Colors.text,
+  tripMenuDeleteLabel: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: 12,
+    color: Colors.error,
   },
   heroContent: {
     paddingHorizontal: Spacing.xl,
