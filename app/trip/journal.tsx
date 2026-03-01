@@ -226,7 +226,7 @@ export default function JournalScreen() {
       >
         {/* Top row: back button + title */}
         <View style={styles.headerTopRow}>
-          <Pressable onPress={() => router.back()} hitSlop={20} style={styles.backButton}>
+          <Pressable onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.back(); }} hitSlop={20} style={styles.backButton}>
             <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
           </Pressable>
           <View style={styles.headerTitleBlock}>

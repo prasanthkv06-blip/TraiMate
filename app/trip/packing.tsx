@@ -436,7 +436,7 @@ export default function PackingScreen() {
           },
         ]}
       >
-        <Pressable onPress={() => router.back()} hitSlop={20} style={styles.backButton}>
+        <Pressable onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.back(); }} hitSlop={20} style={styles.backButton}>
           <Ionicons name="arrow-back" size={22} color={Colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>Packing List</Text>

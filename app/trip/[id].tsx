@@ -687,7 +687,7 @@ export default function TripDetailScreen() {
           />
         </View>
         <View style={styles.heroHeader}>
-          <Pressable onPress={() => { router.canGoBack() ? router.back() : router.push('/'); }} style={styles.backButton} hitSlop={20}>
+          <Pressable onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.canGoBack() ? router.back() : router.push('/'); }} style={styles.backButton} hitSlop={20}>
             <Ionicons name="arrow-back" size={22} color={Colors.white} />
           </Pressable>
           <Pressable style={styles.moreButton}>

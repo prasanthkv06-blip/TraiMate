@@ -4,7 +4,7 @@ import { Redirect } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors } from '../src/constants/theme';
 
-const ONBOARDING_KEY = '@trailmate_onboarded';
+const ONBOARDING_KEY = '@traimate_onboarded';
 
 export default function Index() {
   const [isLoading, setIsLoading] = useState(true);

@@ -19,7 +19,7 @@ import { Colors, Fonts, FontSizes, Spacing, BorderRadius, Shadows } from '../../
 import TripCard from '../../src/components/TripCard';
 import { SAMPLE_TRIPS } from '../../src/constants/sampleData';
 
-const USER_NAME_KEY = '@trailmate_user_name';
+const USER_NAME_KEY = '@traimate_user_name';
 
 function getGreeting(): string {
   const hour = new Date().getHours();

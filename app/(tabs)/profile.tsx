@@ -8,8 +8,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors, Fonts, FontSizes, Spacing, BorderRadius, Shadows } from '../../src/constants/theme';
 import { SAMPLE_TRIPS } from '../../src/constants/sampleData';
 
-const USER_NAME_KEY = '@trailmate_user_name';
-const ONBOARDING_KEY = '@trailmate_onboarded';
+const USER_NAME_KEY = '@traimate_user_name';
+const ONBOARDING_KEY = '@traimate_onboarded';
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
