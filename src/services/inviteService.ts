@@ -318,7 +318,7 @@ export function generateShareMessage(opts: {
     `📍 ${opts.destination}\n` +
     `📅 ${dates}\n\n` +
     `Tap to join: ${inviteLink}\n\n` +
-    `via TraiMate Travel App`
+    `via TrailMate Travel App`
   );
 }
 

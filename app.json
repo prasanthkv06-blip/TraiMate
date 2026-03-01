@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "TraiMate",
+    "name": "TrailMate",
     "slug": "TraiMate",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -33,6 +33,13 @@
       "expo-font",
       "expo-image",
       "expo-secure-store"
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "55d8c8fc-85df-40d7-98bd-4af32872e379"
+      }
+    },
+    "owner": "prasanthkv06"
   }
 }

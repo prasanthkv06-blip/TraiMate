@@ -1,5 +1,5 @@
 /**
- * TraiMate — Flight Status Service
+ * TrailMate — Flight Status Service
  * AviationStack free tier: 100 calls/month.
  * Use sparingly — only when user explicitly checks a flight.
  */

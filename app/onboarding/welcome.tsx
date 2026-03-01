@@ -6,6 +6,7 @@ import {
   Pressable,
   Animated,
   Dimensions,
+  Image,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -131,7 +132,10 @@ export default function WelcomeScreen() {
           ]}
         >
           <View style={styles.logoCircle}>
-            <Text style={styles.logoEmoji}>🧭</Text>
+            <Image
+              source={require('../../assets/icon.png')}
+              style={styles.logoImage}
+            />
           </View>
         </Animated.View>
 
@@ -142,7 +146,7 @@ export default function WelcomeScreen() {
             transform: [{ translateY: titleY }],
           }}
         >
-          <Text style={styles.title}>TraiMate</Text>
+          <Text style={styles.title}>TrailMate</Text>
         </Animated.View>
 
         {/* Subtitle */}
@@ -280,8 +284,10 @@ const styles = StyleSheet.create({
     shadowRadius: 20,
     elevation: 8,
   },
-  logoEmoji: {
-    fontSize: 48,
+  logoImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 20,
   },
   title: {
     fontFamily: Fonts.heading,

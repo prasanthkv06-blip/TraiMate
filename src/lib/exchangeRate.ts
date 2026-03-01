@@ -1,5 +1,5 @@
 /**
- * TraiMate — Exchange Rate Service
+ * TrailMate — Exchange Rate Service
  * Uses free ExchangeRate-API (no key needed for open endpoint).
  * 24hr cache via apiCache.
  */

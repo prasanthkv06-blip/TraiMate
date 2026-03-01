@@ -1,5 +1,5 @@
 /**
- * TraiMate — Gemini AI React Hooks
+ * TrailMate — Gemini AI React Hooks
  */
 
 import { useState, useRef, useCallback } from 'react';

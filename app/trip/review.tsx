@@ -246,7 +246,7 @@ export default function ReviewScreen() {
     try {
       await Share.share({
         title: `${tripName} — Trip Recap`,
-        message: `Just wrapped up ${dayCount} amazing days in ${destination}! Total spend: ${currSymbol}${reportData.totalSpent.toLocaleString()} across ${expenses.length} expenses with ${members.length} friends. Trip score: ${reportData.tripScore}/100. Planned with TraiMate.`,
+        message: `Just wrapped up ${dayCount} amazing days in ${destination}! Total spend: ${currSymbol}${reportData.totalSpent.toLocaleString()} across ${expenses.length} expenses with ${members.length} friends. Trip score: ${reportData.tripScore}/100. Planned with TrailMate.`,
       });
     } catch {}
   };
@@ -947,7 +947,7 @@ export default function ReviewScreen() {
               ))}
               <View style={styles.blogFooter}>
                 <Text style={styles.blogFooterText}>
-                  Written with love and a little help from TraiMate AI
+                  Written with love and a little help from TrailMate AI
                 </Text>
               </View>
             </ScrollView>

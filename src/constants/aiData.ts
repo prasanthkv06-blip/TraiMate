@@ -1,5 +1,5 @@
 /**
- * TraiMate AI Data — Destination intelligence, budgets, packing, visa, suggestions
+ * TrailMate AI Data — Destination intelligence, budgets, packing, visa, suggestions
  */
 
 // ── Currency ──

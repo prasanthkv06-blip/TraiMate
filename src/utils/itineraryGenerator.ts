@@ -1,5 +1,5 @@
 /**
- * TraiMate — AI Itinerary Generator
+ * TrailMate — AI Itinerary Generator
  * Maps trip params → ITINERARY_DB → structured itinerary
  */
 

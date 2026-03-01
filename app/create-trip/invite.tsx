@@ -195,7 +195,7 @@ function QRModal({
           </View>
 
           <Text style={modalStyles.qrHint}>
-            Ask your friends to scan this QR code or{'\n'}enter the invite code in TraiMate
+            Ask your friends to scan this QR code or{'\n'}enter the invite code in TrailMate
           </Text>
 
           <Pressable onPress={onClose} style={modalStyles.qrCloseBtn}>
@@ -304,10 +304,10 @@ export default function InviteScreen() {
         await Linking.openURL(url);
       } else {
         await Clipboard.setStringAsync(shareMessage);
-        await Share.share({ message: shareMessage, title: `Join ${tripName} on TraiMate` });
+        await Share.share({ message: shareMessage, title: `Join ${tripName} on TrailMate` });
       }
     } catch {
-      await Share.share({ message: shareMessage, title: `Join ${tripName} on TraiMate` });
+      await Share.share({ message: shareMessage, title: `Join ${tripName} on TrailMate` });
     }
   };
 
@@ -324,7 +324,7 @@ export default function InviteScreen() {
   const handleEmail = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const emailUrl = generateEmailUrl({
-      subject: `Join "${tripName || 'My Trip'}" on TraiMate!`,
+      subject: `Join "${tripName || 'My Trip'}" on TrailMate!`,
       body: shareMessage,
     });
     try {
@@ -339,7 +339,7 @@ export default function InviteScreen() {
     try {
       await Share.share({
         message: shareMessage,
-        title: `Join ${tripName} on TraiMate`,
+        title: `Join ${tripName} on TrailMate`,
       });
     } catch {
       // user cancelled
@@ -527,7 +527,7 @@ export default function InviteScreen() {
               )}
             </View>
 
-            {/* Search results from TraiMate users */}
+            {/* Search results from TrailMate users */}
             {filteredContacts.length > 0 && (
               <View style={styles.searchResults}>
                 {filteredContacts.slice(0, 4).map((contact) => (

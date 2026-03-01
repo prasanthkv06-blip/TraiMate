@@ -1,5 +1,5 @@
 /**
- * TraiMate — Google Places React Hooks
+ * TrailMate — Google Places React Hooks
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';

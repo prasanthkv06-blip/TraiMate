@@ -501,9 +501,9 @@ export default function TripDetailScreen() {
           });
         }
 
-        console.log('[TraiMate] Trip notifications scheduled');
+        console.log('[TrailMate] Trip notifications scheduled');
       } catch (e) {
-        console.log('[TraiMate] Could not schedule notifications:', e);
+        console.log('[TrailMate] Could not schedule notifications:', e);
       }
     };
 
@@ -536,7 +536,7 @@ export default function TripDetailScreen() {
 
   const handleShare = async (channel: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const msg = `Yo! Join "${trip.name}" to ${trip.destination} on TraiMate 🌍\n\n${inviteLink}`;
+    const msg = `Yo! Join "${trip.name}" to ${trip.destination} on TrailMate 🌍\n\n${inviteLink}`;
     if (channel === 'native') {
       try { await Share.share({ message: msg, title: trip.name }); } catch {}
     }
@@ -2472,7 +2472,7 @@ export default function TripDetailScreen() {
                   onPress={() => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                     if (action.tab === 'share') {
-                      Share.share({ message: `Just wrapped up an amazing trip to ${destName}! ${dayTotal} days, ${squad.length} friends, countless memories. Planned with TraiMate.` }).catch(() => {});
+                      Share.share({ message: `Just wrapped up an amazing trip to ${destName}! ${dayTotal} days, ${squad.length} friends, countless memories. Planned with TrailMate.` }).catch(() => {});
                     } else {
                       router.push(`/trip/review?tab=${action.tab}&${recapParams}` as any);
                     }

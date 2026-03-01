@@ -1,5 +1,5 @@
 /**
- * TraiMate — API Cache Layer
+ * TrailMate — API Cache Layer
  * In-memory Map (30min TTL) + AsyncStorage (24hr TTL)
  */
 

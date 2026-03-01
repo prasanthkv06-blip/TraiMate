@@ -1,5 +1,5 @@
 /**
- * TraiMate — Gemini 2.0 Flash Service
+ * TrailMate — Gemini 2.0 Flash Service
  * Free tier: 1,500 requests/day. Direct REST fetch, no npm dependency.
  */
 
@@ -68,7 +68,7 @@ export async function chatWithGuide(
 ): Promise<string> {
   if (!isConfigured()) throw new Error('Gemini not configured');
 
-  const systemPrompt = `You are TraiMate's AI Local Guide for ${destination}. You're a knowledgeable, friendly travel assistant who gives concise, practical advice.
+  const systemPrompt = `You are TrailMate's AI Local Guide for ${destination}. You're a knowledgeable, friendly travel assistant who gives concise, practical advice.
 
 Rules:
 - Keep responses concise (2-4 short paragraphs max)
@@ -232,7 +232,7 @@ export async function chatWithGuideContextual(
     }
   }
 
-  const systemPrompt = `You are TraiMate's AI Local Guide for ${destination}. You're a knowledgeable, friendly travel assistant who gives concise, practical advice.
+  const systemPrompt = `You are TrailMate's AI Local Guide for ${destination}. You're a knowledgeable, friendly travel assistant who gives concise, practical advice.
 
 Rules:
 - Keep responses concise (2-4 short paragraphs max)

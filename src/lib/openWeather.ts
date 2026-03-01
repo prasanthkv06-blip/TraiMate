@@ -1,5 +1,5 @@
 /**
- * TraiMate — OpenWeatherMap Service
+ * TrailMate — OpenWeatherMap Service
  * Current weather, 5-day forecast, AQI, sunrise/sunset.
  * Free tier: 1,000 calls/day.
  */

@@ -1,5 +1,5 @@
 /**
- * TraiMate — Google Places API (New) Service
+ * TrailMate — Google Places API (New) Service
  * Uses Places API v1 (text search + autocomplete) via direct fetch.
  * $200/mo free credit covers ~6,250 text searches.
  */

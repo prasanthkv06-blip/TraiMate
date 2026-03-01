@@ -1,5 +1,5 @@
 /**
- * TraiMate — Recap (Review) Tab Helpers
+ * TrailMate — Recap (Review) Tab Helpers
  * AI-generated trip reports, settlement calculations, blog/reel content, leaderboard
  */
 
@@ -486,7 +486,7 @@ export function generateBlogPost(
   post += `${destination} taught us that the best trips aren't about checking off a list — they're about the moments in between. The unplanned detours, the late-night conversations, the food that you find down an alley you almost didn't walk into.\n\n`;
   post += `If you're thinking about visiting ${destination}, do it. Your future self will thank you.\n\n`;
   post += `---\n\n`;
-  post += `*Written with love and a little help from TraiMate AI*\n`;
+  post += `*Written with love and a little help from TrailMate AI*\n`;
 
   return post;
 }
@@ -545,7 +545,7 @@ export function generateThread(
     tweets.push(`Day ${entry.day} ${moodEmoji}\n\n${text}`);
   });
 
-  tweets.push(`Total damage: ${currencySymbol}${totalSpent.toLocaleString()} for ${dayCount} days. Worth every penny.\n\nPlanned the entire trip with @TraiMate — honestly a game changer for group trips.`);
+  tweets.push(`Total damage: ${currencySymbol}${totalSpent.toLocaleString()} for ${dayCount} days. Worth every penny.\n\nPlanned the entire trip with @TrailMate — honestly a game changer for group trips.`);
 
   return tweets;
 }
