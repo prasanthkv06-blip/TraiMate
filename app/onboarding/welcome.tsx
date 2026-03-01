@@ -11,6 +11,7 @@ import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors, Fonts, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
 
 const { width, height } = Dimensions.get('window');
@@ -101,6 +102,14 @@ export default function WelcomeScreen() {
     router.push('/onboarding/name');
   };
 
+  const handleExploreAsGuest = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    await AsyncStorage.setItem('@traimate_user_name', 'Traveler');
+    await AsyncStorage.setItem('@traimate_onboarded', 'true');
+    await AsyncStorage.setItem('@traimate_guest_mode', 'true');
+    router.replace('/(tabs)/home');
+  };
+
   return (
     <View style={styles.container}>
       {/* Decorative background circles */}
@@ -144,7 +153,7 @@ export default function WelcomeScreen() {
           }}
         >
           <Text style={styles.subtitle}>
-            Plan trips together.{'\n'}Explore the world as one.
+            Your AI-powered travel companion
           </Text>
         </Animated.View>
 
@@ -158,7 +167,7 @@ export default function WelcomeScreen() {
             },
           ]}
         >
-          {['Group Planning', 'AI Guide', 'Smart Budgets'].map((feature, i) => (
+          {['AI Local Guide', 'Smart Itineraries', 'Live Weather', 'Real Places'].map((feature, i) => (
             <View key={i} style={styles.pill}>
               <Text style={styles.pillText}>{feature}</Text>
             </View>
@@ -194,8 +203,18 @@ export default function WelcomeScreen() {
           </LinearGradient>
         </Pressable>
 
+        <Pressable
+          onPress={handleExploreAsGuest}
+          style={({ pressed }) => [
+            styles.guestButton,
+            pressed && styles.buttonPressed,
+          ]}
+        >
+          <Text style={styles.guestButtonText}>Explore as Guest</Text>
+        </Pressable>
+
         <Text style={styles.termsText}>
-          Your adventure begins here
+          No sign-up needed · Explore freely
         </Text>
       </Animated.View>
     </View>
@@ -325,10 +344,20 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.lg,
     color: Colors.white,
   },
-  buttonArrow: {
+  guestButton: {
+    width: '100%',
+    borderRadius: BorderRadius.xl,
+    borderWidth: 1.5,
+    borderColor: Colors.accent,
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: Spacing.sm,
+  },
+  guestButtonText: {
     fontFamily: Fonts.bodySemiBold,
-    fontSize: FontSizes.xl,
-    color: Colors.white,
+    fontSize: FontSizes.md,
+    color: Colors.accent,
   },
   termsText: {
     fontFamily: Fonts.body,
