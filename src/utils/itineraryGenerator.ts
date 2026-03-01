@@ -153,6 +153,9 @@ export interface GenerateParams {
   endDate: string;
   styles: string[];
   tripType: 'solo' | 'group';
+  arrivalTime?: string;        // "2:30 PM" — 12h format
+  departureTime?: string;      // "6:00 PM" — 12h format
+  hasFlightBooking?: boolean;
 }
 
 export function generateItinerary(params: GenerateParams): ItineraryDay[] {
@@ -226,6 +229,9 @@ export async function generateItineraryAsync(params: GenerateParams): Promise<It
       tripDuration,
       params.styles,
       params.tripType,
+      params.arrivalTime,
+      params.departureTime,
+      params.hasFlightBooking,
     );
 
     const result: ItineraryDay[] = [];

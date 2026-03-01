@@ -64,7 +64,7 @@ import { getCurrencySymbol } from '../../src/lib/exchangeRate';
 import { useTripContext } from '../../src/contexts/TripContext';
 import { getUserRole, getTripVisibility, setTripVisibility } from '../../src/services/tripService';
 import { hasPermission, type TripRole } from '../../src/utils/permissions';
-import type { TripVisibility } from '../../src/services/storageCache';
+import type { TripVisibility, BookingLocal } from '../../src/services/storageCache';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -186,6 +186,144 @@ function getDestEmoji(dest: string): string {
   return match ? match[1].trim() : '🌍';
 }
 
+// ── Time helpers for arrival/departure modal ─────────────────────────────
+
+interface Time12 { hour: number; minute: number; period: 'AM' | 'PM' }
+
+function parseTime12(str: string): Time12 {
+  const match = str.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (!match) return { hour: 12, minute: 0, period: 'PM' };
+  return { hour: parseInt(match[1], 10), minute: parseInt(match[2], 10), period: match[3].toUpperCase() as 'AM' | 'PM' };
+}
+
+function formatTime12(h: number, m: number, period: 'AM' | 'PM'): string {
+  return `${h}:${m.toString().padStart(2, '0')} ${period}`;
+}
+
+function to24h(time12: string): string {
+  const { hour, minute, period } = parseTime12(time12);
+  let h = hour;
+  if (period === 'AM' && h === 12) h = 0;
+  else if (period === 'PM' && h !== 12) h += 12;
+  return `${h.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+}
+
+function detectFlightTimes(bookings: BookingLocal[], tripStart?: string, tripEnd?: string): {
+  arrivalTime: string | null;
+  departureTime: string | null;
+  hasReturnFlight: boolean;
+} {
+  let arrivalTime: string | null = null;
+  let departureTime: string | null = null;
+  let hasReturnFlight = false;
+
+  if (!bookings || bookings.length === 0) return { arrivalTime, departureTime, hasReturnFlight };
+
+  const normalizeDate = (d?: string) => d ? d.split('T')[0] : '';
+  const startNorm = normalizeDate(tripStart);
+  const endNorm = normalizeDate(tripEnd);
+
+  for (const b of bookings) {
+    if (b.type !== 'flight') continue;
+    const bStartNorm = normalizeDate(b.startDate);
+    const bReturnNorm = normalizeDate(b.returnDate);
+    const bEndNorm = normalizeDate(b.endDate);
+
+    // Inbound flight: starts on trip start date
+    if (bStartNorm === startNorm && b.startTime && !arrivalTime) {
+      arrivalTime = b.startTime;
+    }
+    // Return flight with returnDate matching trip end
+    if (bReturnNorm === endNorm && b.returnTime) {
+      departureTime = b.returnTime;
+      hasReturnFlight = true;
+    }
+    // Separate outbound on end date (one-way booking for return)
+    if (!departureTime && bStartNorm === endNorm && b.startTime) {
+      departureTime = b.startTime;
+      hasReturnFlight = true;
+    }
+  }
+
+  return { arrivalTime, departureTime, hasReturnFlight };
+}
+
+// ── TimeInput inline component ───────────────────────────────────────────
+
+function TimeInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const parsed = parseTime12(value);
+  const hour = parsed.hour;
+  const minute = parsed.minute;
+  const period = parsed.period;
+
+  const cycleHour = (dir: 1 | -1) => {
+    let h = hour + dir;
+    if (h > 12) h = 1;
+    if (h < 1) h = 12;
+    onChange(formatTime12(h, minute, period));
+  };
+
+  const cycleMinute = (dir: 1 | -1) => {
+    const steps = [0, 15, 30, 45];
+    const idx = steps.indexOf(minute);
+    let next = idx + dir;
+    if (next >= steps.length) next = 0;
+    if (next < 0) next = steps.length - 1;
+    onChange(formatTime12(hour, steps[next], period));
+  };
+
+  const togglePeriod = () => {
+    onChange(formatTime12(hour, minute, period === 'AM' ? 'PM' : 'AM'));
+  };
+
+  const segmentStyle = {
+    alignItems: 'center' as const,
+    width: 52,
+  };
+
+  const chevronHitSlop = { top: 8, bottom: 8, left: 12, right: 12 };
+
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: BorderRadius.md, paddingVertical: 6, paddingHorizontal: 8 }}>
+      {/* Hour */}
+      <View style={segmentStyle}>
+        <Pressable onPress={() => cycleHour(1)} hitSlop={chevronHitSlop}>
+          <Ionicons name="chevron-up" size={18} color={Colors.textMuted} />
+        </Pressable>
+        <Text style={{ fontFamily: Fonts.bodySemiBold, fontSize: 22, color: Colors.text, marginVertical: 2 }}>
+          {hour.toString().padStart(2, '0')}
+        </Text>
+        <Pressable onPress={() => cycleHour(-1)} hitSlop={chevronHitSlop}>
+          <Ionicons name="chevron-down" size={18} color={Colors.textMuted} />
+        </Pressable>
+      </View>
+
+      <Text style={{ fontFamily: Fonts.bodySemiBold, fontSize: 22, color: Colors.textMuted, marginBottom: 2 }}>:</Text>
+
+      {/* Minute */}
+      <View style={segmentStyle}>
+        <Pressable onPress={() => cycleMinute(1)} hitSlop={chevronHitSlop}>
+          <Ionicons name="chevron-up" size={18} color={Colors.textMuted} />
+        </Pressable>
+        <Text style={{ fontFamily: Fonts.bodySemiBold, fontSize: 22, color: Colors.text, marginVertical: 2 }}>
+          {minute.toString().padStart(2, '0')}
+        </Text>
+        <Pressable onPress={() => cycleMinute(-1)} hitSlop={chevronHitSlop}>
+          <Ionicons name="chevron-down" size={18} color={Colors.textMuted} />
+        </Pressable>
+      </View>
+
+      {/* AM/PM */}
+      <Pressable
+        onPress={togglePeriod}
+        style={{ backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: BorderRadius.sm, paddingHorizontal: 10, paddingVertical: 8, marginLeft: 4 }}
+      >
+        <Text style={{ fontFamily: Fonts.bodySemiBold, fontSize: 16, color: Colors.accent }}>{period}</Text>
+      </Pressable>
+    </View>
+  );
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // MAIN SCREEN
 // ═══════════════════════════════════════════════════════════════════════════
@@ -281,6 +419,13 @@ export default function TripDetailScreen() {
   const [liveEditTime, setLiveEditTime] = useState('');
   const [liveEditTitle, setLiveEditTitle] = useState('');
   const [showMapView, setShowMapView] = useState(false);
+
+  // ── Time modal state (arrival/departure) ───────────────────────────────
+  const [showTimeModal, setShowTimeModal] = useState(false);
+  const [arrivalTime, setArrivalTime] = useState('12:00 PM');
+  const [departureTime, setDepartureTime] = useState('6:00 PM');
+  const [hasReturnFlight, setHasReturnFlight] = useState(false);
+  const lastTimesRef = useRef<{ arrival: string; departure: string; hasFlight: boolean } | null>(null);
 
   // ── Form state for add/edit item ───────────────────────────────────────
   const [formTitle, setFormTitle] = useState('');
@@ -578,10 +723,26 @@ export default function TripDetailScreen() {
   // ITINERARY ACTIONS
   // ═════════════════════════════════════════════════════════════════════════
 
+  // ── Open time modal (pre-fill from flight bookings) ─────────────────────
+  const openTimeModal = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const detected = detectFlightTimes(tripCtx.bookings, params.startDate, params.endDate);
+    setArrivalTime(detected.arrivalTime || '12:00 PM');
+    setDepartureTime(detected.departureTime || '6:00 PM');
+    setHasReturnFlight(detected.hasReturnFlight);
+    setShowTimeModal(true);
+  }, [tripCtx.bookings, params.startDate, params.endDate]);
+
   // ── AI Generation ──────────────────────────────────────────────────────
-  const startAIGeneration = useCallback(() => {
+  const startAIGeneration = useCallback((arrTime?: string, depTime?: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setShowTimeModal(false);
     setItineraryStatus('generating');
+
+    // Save times for regeneration
+    if (arrTime || depTime) {
+      lastTimesRef.current = { arrival: arrTime || '12:00 PM', departure: depTime || '6:00 PM', hasFlight: hasReturnFlight };
+    }
 
     const destName = cleanDestination(params.destination || trip.destination);
     const duration = getTripDuration(params.startDate || '', params.endDate || '');
@@ -624,6 +785,9 @@ export default function TripDetailScreen() {
         endDate: params.endDate || '',
         styles: tripStyles,
         tripType: (params.tripType as 'solo' | 'group') || 'solo',
+        arrivalTime: arrTime,
+        departureTime: depTime,
+        hasFlightBooking: hasReturnFlight || undefined,
       };
 
       const generated = await generateItineraryAsync(genParams);
@@ -636,7 +800,7 @@ export default function TripDetailScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }, accumulated + 800);
     timeoutIdsRef.current.push(finalTid);
-  }, [params.destination, params.startDate, params.endDate, params.tripType, tripStyles, trip.destination]);
+  }, [params.destination, params.startDate, params.endDate, params.tripType, tripStyles, trip.destination, hasReturnFlight]);
 
   // ── Build from scratch ─────────────────────────────────────────────────
   const startFromScratch = useCallback(() => {
@@ -684,6 +848,7 @@ export default function TripDetailScreen() {
       timeoutIdsRef.current.push(tid);
     });
 
+    const savedTimes = lastTimesRef.current;
     const finalTid = setTimeout(async () => {
       const genParams = {
         destination: params.destination || trip.destination,
@@ -691,6 +856,9 @@ export default function TripDetailScreen() {
         endDate: params.endDate || '',
         styles: tripStyles,
         tripType: (params.tripType as 'solo' | 'group') || 'solo',
+        arrivalTime: savedTimes?.arrival,
+        departureTime: savedTimes?.departure,
+        hasFlightBooking: savedTimes?.hasFlight || undefined,
       };
 
       const generated = await generateItineraryAsync(genParams);
@@ -1099,7 +1267,7 @@ export default function TripDetailScreen() {
 
                 {/* AI Generate CTA */}
                 <Pressable
-                  onPress={startAIGeneration}
+                  onPress={openTimeModal}
                   style={({ pressed }) => [styles.aiCtaButton, pressed && { transform: [{ scale: 0.97 }] }]}
                 >
                   <LinearGradient
@@ -3009,6 +3177,60 @@ export default function TripDetailScreen() {
           </View>
         </Pressable>
       )}
+
+      {/* ═══════════════════════════════════════════════
+          ARRIVAL / DEPARTURE TIME MODAL
+      ═══════════════════════════════════════════════ */}
+      <Modal visible={showTimeModal} transparent animationType="fade" onRequestClose={() => setShowTimeModal(false)}>
+        <Pressable style={styles.timeModalOverlay} onPress={() => setShowTimeModal(false)}>
+          <Pressable style={styles.timeModalCard} onPress={() => {}}>
+            {/* Header */}
+            <View style={styles.timeModalHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.timeModalTitle}>When do you arrive & leave?</Text>
+                <Text style={styles.timeModalSubtitle}>
+                  {hasReturnFlight ? 'Pre-filled from your flight bookings' : "We'll plan around your schedule"}
+                </Text>
+              </View>
+              <Pressable onPress={() => setShowTimeModal(false)} hitSlop={12}>
+                <Ionicons name="close" size={22} color={Colors.textMuted} />
+              </Pressable>
+            </View>
+
+            {/* Arrival */}
+            <View style={{ marginBottom: 20 }}>
+              <Text style={styles.timeModalLabel}>ARRIVAL TIME (DAY 1)</Text>
+              <TimeInput value={arrivalTime} onChange={setArrivalTime} />
+              <Text style={styles.timeModalHint}>We'll add 2h for check-in before planning activities</Text>
+            </View>
+
+            {/* Departure */}
+            <View style={{ marginBottom: 24 }}>
+              <Text style={styles.timeModalLabel}>DEPARTURE TIME (LAST DAY)</Text>
+              <TimeInput value={departureTime} onChange={setDepartureTime} />
+              <Text style={styles.timeModalHint}>
+                {hasReturnFlight ? "We'll keep 3h for airport transit" : 'Activities planned before this time'}
+              </Text>
+            </View>
+
+            {/* Generate button */}
+            <Pressable
+              onPress={() => startAIGeneration(arrivalTime, departureTime)}
+              style={({ pressed }) => [pressed && { transform: [{ scale: 0.97 }] }]}
+            >
+              <LinearGradient
+                colors={[Colors.sage, Colors.sageDark]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.timeModalButton}
+              >
+                <Ionicons name="sparkles" size={20} color={Colors.white} />
+                <Text style={styles.timeModalButtonText}>Generate Itinerary</Text>
+              </LinearGradient>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -4655,5 +4877,63 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.bodySemiBold,
     fontSize: FontSizes.xs,
     color: Colors.sage,
+  },
+  // ── Time Modal ────────────────────────────────
+  timeModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.lg,
+  },
+  timeModalCard: {
+    backgroundColor: Colors.card,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.lg,
+    width: '100%',
+    maxWidth: 380,
+  },
+  timeModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 20,
+    gap: 12,
+  },
+  timeModalTitle: {
+    fontFamily: Fonts.heading,
+    fontSize: FontSizes.lg,
+    color: Colors.text,
+    marginBottom: 4,
+  },
+  timeModalSubtitle: {
+    fontFamily: Fonts.body,
+    fontSize: FontSizes.xs,
+    color: Colors.textMuted,
+  },
+  timeModalLabel: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: 11,
+    color: Colors.textSecondary,
+    letterSpacing: 0.8,
+    marginBottom: 8,
+  },
+  timeModalHint: {
+    fontFamily: Fonts.body,
+    fontSize: FontSizes.xs,
+    color: Colors.textMuted,
+    marginTop: 6,
+  },
+  timeModalButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: BorderRadius.lg,
+  },
+  timeModalButtonText: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: FontSizes.md,
+    color: Colors.white,
   },
 });

@@ -111,6 +111,31 @@ Rules:
   return text;
 }
 
+// ── Time helpers for itinerary constraints ────────────────────────────────
+
+function to24hForPrompt(time12: string): string {
+  const match = time12.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (!match) return '12:00';
+  let h = parseInt(match[1], 10);
+  const m = match[2];
+  const period = match[3].toUpperCase();
+  if (period === 'AM' && h === 12) h = 0;
+  else if (period === 'PM' && h !== 12) h += 12;
+  return `${h.toString().padStart(2, '0')}:${m}`;
+}
+
+function addHours(time24: string, hours: number): string {
+  const [h, m] = time24.split(':').map(Number);
+  const newH = Math.min(h + hours, 23);
+  return `${newH.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+}
+
+function subtractHours(time24: string, hours: number): string {
+  const [h, m] = time24.split(':').map(Number);
+  const newH = Math.max(h - hours, 0);
+  return `${newH.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+}
+
 // ── Generate Itinerary ───────────────────────────────────────────────────
 
 export async function generateItineraryFromAI(
@@ -118,17 +143,50 @@ export async function generateItineraryFromAI(
   numDays: number,
   styles: string[],
   tripType: 'solo' | 'group',
+  arrivalTime?: string,
+  departureTime?: string,
+  hasFlightBooking?: boolean,
 ): Promise<Record<number, Activity[]>> {
   if (!isConfigured()) throw new Error('Gemini not configured');
 
-  const cacheKey = `itinerary_${destination}_${numDays}_${styles.join(',')}_${tripType}`;
+  const cacheKey = `itinerary_${destination}_${numDays}_${styles.join(',')}_${tripType}_${arrivalTime || ''}_${departureTime || ''}`;
   const cached = await getCached<Record<number, Activity[]>>(cacheKey);
   if (cached) return cached;
 
   const styleDesc = styles.length > 0 ? styles.join(', ') : 'balanced mix of culture, food, and sightseeing';
 
+  // Build time constraints block
+  let timeConstraints = '';
+  if (arrivalTime || departureTime) {
+    const parts: string[] = [];
+    if (arrivalTime) {
+      // Convert 12h to 24h for the prompt
+      const arr24 = to24hForPrompt(arrivalTime);
+      const arrPlus2 = addHours(arr24, 2);
+      if (numDays === 1 && departureTime) {
+        parts.push(`SINGLE-DAY TRIP: Traveler arrives at ${arr24}. Add 2 hours for hotel check-in and settling. First activity no earlier than ${arrPlus2}. Do NOT schedule activities before arrival.`);
+      } else {
+        parts.push(`DAY 1 ARRIVAL: Traveler arrives at ${arr24}. Add 2 hours for hotel check-in and settling. First activity no earlier than ${arrPlus2}. Do NOT schedule activities before arrival.`);
+      }
+    }
+    if (departureTime) {
+      const dep24 = to24hForPrompt(departureTime);
+      if (numDays === 1 && arrivalTime) {
+        const cutoff = subtractHours(dep24, hasFlightBooking ? 3 : 1);
+        parts.push(`Traveler departs at ${dep24}. ${hasFlightBooking ? 'Keep 3 hours before departure for airport transit and check-in.' : 'Keep 1 hour before departure.'} Only plan activities before ${cutoff}.`);
+      } else if (hasFlightBooking) {
+        const cutoff = subtractHours(dep24, 3);
+        parts.push(`LAST DAY DEPARTURE: Traveler departs at ${dep24}. Keep 3 hours before departure for airport transit and check-in. Only plan morning activities if there is enough time before ${cutoff}.`);
+      } else {
+        const cutoff = subtractHours(dep24, 1);
+        parts.push(`LAST DAY DEPARTURE: Traveler departs at ${dep24}. Keep 1 hour before departure. Plan activities before ${cutoff}.`);
+      }
+    }
+    timeConstraints = '\n\nTIME CONSTRAINTS:\n' + parts.join('\n');
+  }
+
   const prompt = `Create a ${numDays}-day travel itinerary for ${destination} for a ${tripType} trip.
-Travel style preferences: ${styleDesc}.
+Travel style preferences: ${styleDesc}.${timeConstraints}
 
 Return ONLY valid JSON (no markdown, no code blocks) in this exact format:
 {
@@ -148,7 +206,10 @@ Rules for the JSON:
 - First day should start with hotel check-in
 - Include a mix of food spots and activities
 - Last day should end with departure/checkout
-- Use real place names and locations for ${destination}`;
+- Use real place names and locations for ${destination}
+- Include fewer activities on arrival/departure days when time is limited
+- Activities must not overlap — each starts after the previous ends
+- Include realistic travel time between distant locations`;
 
   const response = await callGemini(prompt, {
     temperature: 0.7,
