@@ -2,6 +2,8 @@ import { AI_GUIDE_DB, AI_SUGGESTIONS_DB, type AISuggestion } from '../constants/
 import type { ItineraryDay, ItineraryItem } from './itineraryGenerator';
 import { searchPlaces } from '../lib/googlePlaces';
 import { generateAITips } from '../lib/gemini';
+import { getCurrentWeather, getForecast, getAirQuality, type RealWeather, type ForecastDay, type AirQuality } from '../lib/openWeather';
+import { getExchangeRate, guessLocalCurrency, type ExchangeRateInfo } from '../lib/exchangeRate';
 
 // Check if trip is currently active
 export function isTripLive(startDate?: string, endDate?: string): boolean {
@@ -68,6 +70,48 @@ export function getSimulatedWeather(destination: string): SimulatedWeather {
   if (key.includes('bangkok')) return { temp: 33, condition: 'Humid', icon: 'partly-sunny', alert: 'Afternoon thunderstorms likely' };
   return { temp: 25, condition: 'Pleasant', icon: 'partly-sunny' };
 }
+
+// ── Full live data bundle (all real-time data in one call) ──
+export interface LiveData {
+  weather: SimulatedWeather;        // always available (real or simulated)
+  realWeather: RealWeather | null;  // null if API not configured
+  forecast: ForecastDay[];
+  aqi: AirQuality | null;
+  exchangeRate: ExchangeRateInfo | null;
+  localCurrency: string;
+}
+
+export async function getLiveDataAsync(
+  destination: string,
+  homeCurrency: string = 'USD',
+): Promise<LiveData> {
+  const localCurrency = guessLocalCurrency(destination);
+
+  // Fetch all in parallel
+  const [realWeather, forecast, aqi, exchangeRate] = await Promise.all([
+    getCurrentWeather(destination).catch(() => null),
+    getForecast(destination).catch(() => []),
+    getAirQuality(destination).catch(() => null),
+    homeCurrency !== localCurrency
+      ? getExchangeRate(homeCurrency, localCurrency).catch(() => null)
+      : Promise.resolve(null),
+  ]);
+
+  // Map real weather → SimulatedWeather shape for backwards compatibility
+  const weather: SimulatedWeather = realWeather
+    ? {
+        temp: realWeather.temp,
+        condition: realWeather.condition,
+        icon: realWeather.icon,
+        alert: realWeather.alert,
+      }
+    : getSimulatedWeather(destination);
+
+  return { weather, realWeather, forecast, aqi, exchangeRate, localCurrency };
+}
+
+// Re-export types for consumers
+export type { RealWeather, ForecastDay, AirQuality, ExchangeRateInfo };
 
 // Get pre-trip alerts from AI_GUIDE_DB
 export function getPreTripAlerts(destination: string): Array<{ text: string; type: string; emoji: string }> {

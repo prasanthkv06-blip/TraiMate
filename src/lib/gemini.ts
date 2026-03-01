@@ -170,6 +170,160 @@ Rules for the JSON:
   }
 }
 
+// ── Context-Aware Chat ───────────────────────────────────────────────────
+
+export interface LiveContext {
+  weather?: { temp: number; condition: string; alert?: string; humidity?: number; windSpeed?: number };
+  forecast?: Array<{ date: string; high: number; low: number; condition: string; pop: number }>;
+  sunrise?: string;
+  sunset?: string;
+  aqi?: { label: string; advice: string };
+  currentDay?: number;
+  totalDays?: number;
+  todayActivities?: string[];
+  localCurrency?: string;
+  exchangeRate?: { from: string; to: string; rate: number };
+}
+
+export async function chatWithGuideContextual(
+  message: string,
+  destination: string,
+  history: ChatMessage[] = [],
+  context?: LiveContext,
+): Promise<string> {
+  if (!isConfigured()) throw new Error('Gemini not configured');
+
+  let contextBlock = '';
+  if (context) {
+    const parts: string[] = [];
+    if (context.weather) {
+      parts.push(`Current weather: ${context.weather.temp}°C, ${context.weather.condition}${context.weather.alert ? ` (Alert: ${context.weather.alert})` : ''}, humidity ${context.weather.humidity || '--'}%, wind ${context.weather.windSpeed || '--'} m/s`);
+    }
+    if (context.sunrise && context.sunset) {
+      parts.push(`Sunrise: ${context.sunrise}, Sunset: ${context.sunset}`);
+    }
+    if (context.aqi) {
+      parts.push(`Air quality: ${context.aqi.label} — ${context.aqi.advice}`);
+    }
+    if (context.forecast?.length) {
+      const fStr = context.forecast.slice(0, 3).map(f => `${f.date}: ${f.high}°/${f.low}° ${f.condition}${f.pop > 30 ? ` (${f.pop}% rain)` : ''}`).join(', ');
+      parts.push(`Forecast: ${fStr}`);
+    }
+    if (context.currentDay && context.totalDays) {
+      parts.push(`Trip day ${context.currentDay} of ${context.totalDays}`);
+    }
+    if (context.todayActivities?.length) {
+      parts.push(`Today's plan: ${context.todayActivities.join(' → ')}`);
+    }
+    if (context.exchangeRate) {
+      parts.push(`Exchange rate: 1 ${context.exchangeRate.from} = ${context.exchangeRate.rate} ${context.exchangeRate.to}`);
+    }
+    if (parts.length > 0) {
+      contextBlock = `\n\nLIVE CONTEXT (use this to give relevant, timely advice):\n${parts.join('\n')}`;
+    }
+  }
+
+  const systemPrompt = `You are TraiMate's AI Local Guide for ${destination}. You're a knowledgeable, friendly travel assistant who gives concise, practical advice.
+
+Rules:
+- Keep responses concise (2-4 short paragraphs max)
+- Use bold (**text**) for place names and key info
+- Include specific practical details (prices, hours, addresses)
+- Suggest insider tips that tourists wouldn't know
+- Use relevant emoji sparingly (1-2 per response)
+- If asked about something unrelated to travel, gently redirect
+- Never make up specific prices or hours if unsure — say "check locally"
+- When you have live context, proactively mention relevant info (e.g. "it's raining, so..." or "sunset is at 6:30, perfect time for...")${contextBlock}`;
+
+  const conversationParts = history.map(msg => ({
+    role: msg.role,
+    parts: [{ text: msg.text }],
+  }));
+
+  const body = {
+    contents: [
+      { role: 'user', parts: [{ text: systemPrompt }] },
+      { role: 'model', parts: [{ text: `I'm your AI Local Guide for ${destination}! I have real-time weather and local info to help you right now. What do you need?` }] },
+      ...conversationParts,
+      { role: 'user', parts: [{ text: message }] },
+    ],
+    generationConfig: {
+      temperature: 0.8,
+      maxOutputTokens: 1024,
+    },
+  };
+
+  const response = await fetch(`${BASE_URL}:generateContent?key=${API_KEY}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) throw new Error(`Gemini chat error: ${response.status}`);
+
+  const data = await response.json();
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!text) throw new Error('Empty chat response');
+  return text;
+}
+
+// ── Generate Smart Daily Briefing ────────────────────────────────────────
+
+export async function generateDailyBriefing(
+  destination: string,
+  context: LiveContext,
+): Promise<string> {
+  if (!isConfigured()) throw new Error('Gemini not configured');
+
+  const cacheKey = `briefing_${destination}_${context.currentDay || 1}_${new Date().toISOString().split('T')[0]}`;
+  const cached = await getCached<string>(cacheKey);
+  if (cached) return cached;
+
+  const parts: string[] = [`Destination: ${destination}`];
+  if (context.weather) {
+    parts.push(`Weather: ${context.weather.temp}°C, ${context.weather.condition}${context.weather.alert ? `. Alert: ${context.weather.alert}` : ''}`);
+  }
+  if (context.sunrise && context.sunset) {
+    parts.push(`Sunrise: ${context.sunrise}, Sunset: ${context.sunset}`);
+  }
+  if (context.aqi) {
+    parts.push(`Air quality: ${context.aqi.label}`);
+  }
+  if (context.forecast?.length) {
+    parts.push(`Tomorrow: ${context.forecast[0].high}°/${context.forecast[0].low}° ${context.forecast[0].condition}`);
+  }
+  if (context.currentDay && context.totalDays) {
+    parts.push(`Day ${context.currentDay} of ${context.totalDays}`);
+  }
+  if (context.todayActivities?.length) {
+    parts.push(`Planned: ${context.todayActivities.join(', ')}`);
+  }
+
+  const prompt = `Generate a short, friendly morning travel briefing (3-4 sentences max) for a traveler.
+
+${parts.join('\n')}
+
+Rules:
+- Start with a warm greeting based on the weather
+- Mention one practical weather tip if relevant
+- Reference their planned activities with a helpful suggestion
+- End with an encouraging note for the day
+- Keep it concise and personal — like a friend texting you
+- No bullet points, just flowing text
+- Use 1-2 emoji max`;
+
+  try {
+    const response = await callGemini(prompt, {
+      temperature: 0.8,
+      maxOutputTokens: 256,
+    });
+    await setCache(cacheKey, response);
+    return response;
+  } catch {
+    throw new Error('Briefing generation failed');
+  }
+}
+
 // ── Generate AI Tips for Places ──────────────────────────────────────────
 
 export async function generateAITips(

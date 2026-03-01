@@ -52,9 +52,13 @@ import {
   getPreTripAlerts,
   getTrendingSuggestions,
   getTrendingSuggestionsAsync,
+  getLiveDataAsync,
   generateAIRescheduleSuggestions,
   type AIRescheduleSuggestion,
+  type LiveData,
 } from '../../src/utils/liveHelpers';
+import { generateDailyBriefing, type LiveContext } from '../../src/lib/gemini';
+import { getCurrencySymbol } from '../../src/lib/exchangeRate';
 import { useTripContext } from '../../src/contexts/TripContext';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -243,6 +247,8 @@ export default function TripDetailScreen() {
   const [trendingDetail, setTrendingDetail] = useState<AISuggestion | null>(null);
   const [asyncTrending, setAsyncTrending] = useState<AISuggestion[]>([]);
   const [trendingLoading, setTrendingLoading] = useState(false);
+  const [liveData, setLiveData] = useState<LiveData | null>(null);
+  const [dailyBriefing, setDailyBriefing] = useState<string | null>(null);
   const [liveEditItem, setLiveEditItem] = useState<ItineraryItem | null>(null);
   const [liveEditTime, setLiveEditTime] = useState('');
   const [liveEditTitle, setLiveEditTitle] = useState('');
@@ -330,19 +336,66 @@ export default function TripDetailScreen() {
     }
   }, [itinerary]);
 
-  // ── Load async trending suggestions when live tab is active ──────────
+  // ── Load live data (weather, forecast, AQI, exchange rate, trending) when live tab is active ──
   useEffect(() => {
     if (activePhase !== 'live') return;
     const destName = cleanDestination(params.destination || trip.destination);
     let cancelled = false;
+
+    // Load trending
     setTrendingLoading(true);
     getTrendingSuggestionsAsync(destName).then(results => {
       if (!cancelled && results.length > 0) setAsyncTrending(results);
     }).finally(() => {
       if (!cancelled) setTrendingLoading(false);
     });
+
+    // Load weather + forecast + AQI + exchange rate
+    getLiveDataAsync(destName).then(data => {
+      if (!cancelled) setLiveData(data);
+    });
+
     return () => { cancelled = true; };
   }, [activePhase, params.destination, trip.destination]);
+
+  // ── Generate smart daily briefing when live data is ready ──
+  useEffect(() => {
+    if (!liveData?.realWeather || dailyBriefing) return;
+    const destName = cleanDestination(params.destination || trip.destination);
+    const currentDay = getCurrentDayNumber(params.startDate);
+    const totalDays = itinerary.length || 5;
+    const todayPlan = getTodayItinerary(itinerary, currentDay);
+    let cancelled = false;
+
+    const context: LiveContext = {
+      weather: liveData.realWeather ? {
+        temp: liveData.realWeather.temp,
+        condition: liveData.realWeather.condition,
+        alert: liveData.realWeather.alert,
+        humidity: liveData.realWeather.humidity,
+        windSpeed: liveData.realWeather.windSpeed,
+      } : undefined,
+      sunrise: liveData.realWeather?.sunrise,
+      sunset: liveData.realWeather?.sunset,
+      aqi: liveData.aqi ? { label: liveData.aqi.label, advice: liveData.aqi.advice } : undefined,
+      forecast: liveData.forecast.slice(0, 3).map(f => ({
+        date: f.date,
+        high: f.high,
+        low: f.low,
+        condition: f.condition,
+        pop: f.pop,
+      })),
+      currentDay,
+      totalDays,
+      todayActivities: todayPlan?.items.map(i => i.title) || [],
+    };
+
+    generateDailyBriefing(destName, context).then(briefing => {
+      if (!cancelled) setDailyBriefing(briefing);
+    }).catch(() => {});
+
+    return () => { cancelled = true; };
+  }, [liveData, params.destination, trip.destination]);
 
   // ── Schedule local push notifications ────────────────────────────────
   useEffect(() => {
@@ -1315,7 +1368,7 @@ export default function TripDetailScreen() {
           const currentDay = getCurrentDayNumber(params.startDate);
           const totalDays = itinerary.length || 5;
           const todayPlan = getTodayItinerary(itinerary, currentDay);
-          const weather = getSimulatedWeather(destName);
+          const weather = liveData?.weather || getSimulatedWeather(destName);
           const preTripAlerts = getPreTripAlerts(destName);
           const syncTrending = getTrendingSuggestions(destName);
           const trending = asyncTrending.length > 0 ? asyncTrending : syncTrending;
@@ -1340,16 +1393,52 @@ export default function TripDetailScreen() {
                   <Text style={styles.liveGreeting}>{getGreeting()}</Text>
                   <Text style={styles.liveDayInfo}>
                     Day {currentDay} of {totalDays} · {destName} · {weather.temp}°C
+                    {liveData?.realWeather ? ` · Feels ${liveData.realWeather.feelsLike}°C` : ''}
                   </Text>
                 </View>
                 <Ionicons name={weather.icon as any} size={32} color={Colors.white} />
               </View>
+
+              {/* Real weather details row */}
+              {liveData?.realWeather && (
+                <View style={{ flexDirection: 'row', gap: 12, marginTop: 10, flexWrap: 'wrap' }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <Ionicons name="water-outline" size={12} color="rgba(255,255,255,0.7)" />
+                    <Text style={{ fontFamily: Fonts.body, fontSize: 11, color: 'rgba(255,255,255,0.8)' }}>{liveData.realWeather.humidity}%</Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <Ionicons name="speedometer-outline" size={12} color="rgba(255,255,255,0.7)" />
+                    <Text style={{ fontFamily: Fonts.body, fontSize: 11, color: 'rgba(255,255,255,0.8)' }}>{liveData.realWeather.windSpeed} m/s</Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <Ionicons name="sunny-outline" size={12} color="rgba(255,255,255,0.7)" />
+                    <Text style={{ fontFamily: Fonts.body, fontSize: 11, color: 'rgba(255,255,255,0.8)' }}>{liveData.realWeather.sunrise}</Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <Ionicons name="moon-outline" size={12} color="rgba(255,255,255,0.7)" />
+                    <Text style={{ fontFamily: Fonts.body, fontSize: 11, color: 'rgba(255,255,255,0.8)' }}>{liveData.realWeather.sunset}</Text>
+                  </View>
+                </View>
+              )}
+
               {weather.alert && (
                 <View style={styles.liveWeatherAlert}>
                   <Ionicons name="warning-outline" size={14} color="#FBBF24" />
                   <Text style={styles.liveWeatherAlertText}>{weather.alert}</Text>
                 </View>
               )}
+
+              {/* Smart AI Briefing */}
+              {dailyBriefing && (
+                <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.15)' }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                    <Ionicons name="sparkles" size={12} color="rgba(255,255,255,0.8)" />
+                    <Text style={{ fontFamily: Fonts.bodySemiBold, fontSize: 11, color: 'rgba(255,255,255,0.7)' }}>AI BRIEFING</Text>
+                  </View>
+                  <Text style={{ fontFamily: Fonts.body, fontSize: FontSizes.sm, color: Colors.white, lineHeight: 20 }}>{dailyBriefing}</Text>
+                </View>
+              )}
+
               {tripIsTomorrow && (
                 <View style={{ marginTop: 12 }}>
                   <Text style={{ fontFamily: Fonts.bodySemiBold, fontSize: FontSizes.md, color: Colors.white, marginBottom: 8 }}>
@@ -1364,6 +1453,52 @@ export default function TripDetailScreen() {
                 </View>
               )}
             </LinearGradient>
+
+            {/* ── Forecast + AQI + Exchange Rate row ────────── */}
+            {(liveData?.forecast.length || liveData?.aqi || liveData?.exchangeRate) ? (
+              <View style={{ flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.sm }}>
+                {/* Forecast mini cards */}
+                {liveData?.forecast.length ? (
+                  <View style={{ flex: 2, backgroundColor: Colors.white, borderRadius: BorderRadius.md, padding: Spacing.md, ...Shadows.card }}>
+                    <Text style={{ fontFamily: Fonts.bodySemiBold, fontSize: 11, color: Colors.textMuted, marginBottom: 8 }}>FORECAST</Text>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                      {liveData.forecast.slice(0, 4).map((f, fi) => (
+                        <View key={`fc-${fi}`} style={{ alignItems: 'center', gap: 4 }}>
+                          <Text style={{ fontFamily: Fonts.bodySemiBold, fontSize: 10, color: Colors.textSecondary }}>{f.date}</Text>
+                          <Ionicons name={f.icon as any} size={18} color={Colors.sage} />
+                          <Text style={{ fontFamily: Fonts.bodySemiBold, fontSize: 11, color: Colors.text }}>{f.high}°</Text>
+                          <Text style={{ fontFamily: Fonts.body, fontSize: 10, color: Colors.textMuted }}>{f.low}°</Text>
+                          {f.pop > 20 && (
+                            <Text style={{ fontFamily: Fonts.body, fontSize: 9, color: '#3B82F6' }}>{f.pop}%</Text>
+                          )}
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                ) : null}
+
+                {/* AQI + Exchange Rate column */}
+                <View style={{ flex: 1, gap: Spacing.sm }}>
+                  {liveData?.aqi && (
+                    <View style={{ backgroundColor: Colors.white, borderRadius: BorderRadius.md, padding: Spacing.md, ...Shadows.card }}>
+                      <Text style={{ fontFamily: Fonts.bodySemiBold, fontSize: 10, color: Colors.textMuted, marginBottom: 4 }}>AIR QUALITY</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: liveData.aqi.color }} />
+                        <Text style={{ fontFamily: Fonts.bodySemiBold, fontSize: FontSizes.sm, color: Colors.text }}>{liveData.aqi.label}</Text>
+                      </View>
+                    </View>
+                  )}
+                  {liveData?.exchangeRate && (
+                    <View style={{ backgroundColor: Colors.white, borderRadius: BorderRadius.md, padding: Spacing.md, ...Shadows.card }}>
+                      <Text style={{ fontFamily: Fonts.bodySemiBold, fontSize: 10, color: Colors.textMuted, marginBottom: 4 }}>EXCHANGE</Text>
+                      <Text style={{ fontFamily: Fonts.bodySemiBold, fontSize: FontSizes.sm, color: Colors.text }}>
+                        1 {liveData.exchangeRate.from} = {liveData.exchangeRate.rate.toFixed(2)} {getCurrencySymbol(liveData.exchangeRate.to)}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+            ) : null}
 
             {/* ── Live Phase Alerts ──────────────────────── */}
             <View style={{ marginTop: Spacing.sm }}>
@@ -1766,9 +1901,17 @@ export default function TripDetailScreen() {
                         {/* Tags */}
                         {item.tags && item.tags.length > 0 && (
                           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 8 }}>
-                            {item.tags.slice(0, 2).map((tag, ti) => (
-                              <View key={`tag-${idx}-${ti}`} style={styles.liveTrendingTag}>
-                                <Text style={styles.liveTrendingTagText}>{tag}</Text>
+                            {item.tags.slice(0, 3).map((tag, ti) => (
+                              <View key={`tag-${idx}-${ti}`} style={[
+                                styles.liveTrendingTag,
+                                tag === 'Open Now' && { backgroundColor: 'rgba(76,175,80,0.12)' },
+                                tag === 'Closed' && { backgroundColor: 'rgba(244,67,54,0.12)' },
+                              ]}>
+                                <Text style={[
+                                  styles.liveTrendingTagText,
+                                  tag === 'Open Now' && { color: '#4CAF50' },
+                                  tag === 'Closed' && { color: '#F44336' },
+                                ]}>{tag}</Text>
                               </View>
                             ))}
                           </View>
@@ -2225,7 +2368,17 @@ export default function TripDetailScreen() {
 
       {/* ── AI Floating Chatbot (Plan & Live tabs) ────────── */}
       {(activePhase === 'plan' || activePhase === 'live') && (
-        <AIGuide destination={trip.destination} />
+        <AIGuide
+          destination={trip.destination}
+          liveContext={liveData?.realWeather ? {
+            weather: { temp: liveData.realWeather.temp, condition: liveData.realWeather.condition, alert: liveData.realWeather.alert, humidity: liveData.realWeather.humidity, windSpeed: liveData.realWeather.windSpeed },
+            sunrise: liveData.realWeather.sunrise,
+            sunset: liveData.realWeather.sunset,
+            aqi: liveData.aqi ? { label: liveData.aqi.label, advice: liveData.aqi.advice } : undefined,
+            forecast: liveData.forecast.slice(0, 3).map(f => ({ date: f.date, high: f.high, low: f.low, condition: f.condition, pop: f.pop })),
+            exchangeRate: liveData.exchangeRate ? { from: liveData.exchangeRate.from, to: liveData.exchangeRate.to, rate: liveData.exchangeRate.rate } : undefined,
+          } : undefined}
+        />
       )}
 
       {/* ═══════════════════════════════════════════════════════

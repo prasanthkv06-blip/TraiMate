@@ -34,16 +34,25 @@ function inferStype(types: string[]): 'food' | 'activity' {
 
 function mapPlaceToSuggestion(place: any): AISuggestion {
   const types: string[] = place.types || [];
+  const tags = types
+    .filter((t: string) => !t.startsWith('point_of_interest') && !t.startsWith('establishment'))
+    .slice(0, 2)
+    .map((t: string) => t.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()));
+
+  // Add open/closed status as a tag
+  if (place.currentOpeningHours?.openNow === true) {
+    tags.unshift('Open Now');
+  } else if (place.currentOpeningHours?.openNow === false) {
+    tags.unshift('Closed');
+  }
+
   return {
     tl: place.displayName?.text || 'Unknown Place',
     l: place.formattedAddress || '',
     desc: place.editorialSummary?.text || place.primaryType?.replace(/_/g, ' ') || 'Popular spot',
     price: mapPriceLevel(place.priceLevel),
     rating: place.rating || 4.0,
-    tags: types
-      .filter((t: string) => !t.startsWith('point_of_interest') && !t.startsWith('establishment'))
-      .slice(0, 3)
-      .map((t: string) => t.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())),
+    tags,
     ai: '', // Will be filled by generateAITips if available
     stype: inferStype(types),
   };
@@ -73,7 +82,7 @@ export async function searchPlaces(
       headers: {
         'Content-Type': 'application/json',
         'X-Goog-Api-Key': API_KEY,
-        'X-Goog-FieldMask': 'places.displayName,places.formattedAddress,places.rating,places.priceLevel,places.types,places.editorialSummary,places.primaryType',
+        'X-Goog-FieldMask': 'places.displayName,places.formattedAddress,places.rating,places.priceLevel,places.types,places.editorialSummary,places.primaryType,places.currentOpeningHours',
       },
       body: JSON.stringify({
         textQuery: `${typeQuery} in ${destination}`,

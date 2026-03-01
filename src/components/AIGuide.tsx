@@ -27,9 +27,9 @@ interface Message {
 }
 
 import { AI_GUIDE_DB, AI_SUGGESTIONS_DB } from '../constants/aiData';
-import { chatWithGuide, type ChatMessage } from '../lib/gemini';
+import { chatWithGuide, chatWithGuideContextual, type ChatMessage, type LiveContext } from '../lib/gemini';
 
-const SUGGESTIONS = [
+const DEFAULT_SUGGESTIONS = [
   '🍜 Best local restaurants nearby',
   '🚇 How to get around',
   '🏛️ Hidden gems to visit',
@@ -37,6 +37,36 @@ const SUGGESTIONS = [
   '🚨 Emergency numbers',
   '💰 Budget tips',
 ];
+
+function getContextualSuggestions(context?: LiveContext): string[] {
+  if (!context?.weather) return DEFAULT_SUGGESTIONS;
+
+  const suggestions: string[] = ['🤔 What should I do right now?'];
+
+  // Weather-aware suggestions
+  const { temp, condition, alert } = context.weather;
+  if (alert?.toLowerCase().includes('rain') || condition === 'Rain' || condition === 'Drizzle' || condition === 'Thunderstorm') {
+    suggestions.push('🌧️ Indoor activities nearby?');
+  }
+  if (temp && temp >= 33) {
+    suggestions.push('❄️ Where to cool down?');
+  }
+  if (temp && temp <= 10) {
+    suggestions.push('☕ Cozy warm spots nearby?');
+  }
+  if (context.sunset) {
+    suggestions.push('🌅 Best sunset viewpoint?');
+  }
+  if (context.aqi && (context.aqi.label === 'Poor' || context.aqi.label === 'Very Poor')) {
+    suggestions.push('😷 Air quality is bad — safe activities?');
+  }
+
+  // Always include these
+  suggestions.push('🍜 Best local food nearby');
+  suggestions.push('💰 Budget tips for today');
+
+  return suggestions.slice(0, 6);
+}
 
 function getDestKey(destination: string): string {
   const d = destination.toLowerCase();
@@ -119,9 +149,10 @@ function getAIResponse(input: string, destination?: string): string {
 
 interface AIGuideProps {
   destination?: string;
+  liveContext?: LiveContext;
 }
 
-export default function AIGuide({ destination }: AIGuideProps) {
+export default function AIGuide({ destination, liveContext }: AIGuideProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -178,7 +209,9 @@ export default function AIGuide({ destination }: AIGuideProps) {
     setIsTyping(true);
 
     try {
-      const response = await chatWithGuide(messageText, destination || 'your destination', chatHistory);
+      const response = liveContext
+        ? await chatWithGuideContextual(messageText, destination || 'your destination', chatHistory, liveContext)
+        : await chatWithGuide(messageText, destination || 'your destination', chatHistory);
       setChatHistory(prev => [
         ...prev,
         { role: 'user', text: messageText },
@@ -288,7 +321,7 @@ export default function AIGuide({ destination }: AIGuideProps) {
               {/* Quick suggestions */}
               {messages.length <= 1 && (
                 <View style={styles.suggestions}>
-                  {SUGGESTIONS.map((s, i) => (
+                  {getContextualSuggestions(liveContext).map((s, i) => (
                     <Pressable
                       key={i}
                       onPress={() => handleSend(s)}
