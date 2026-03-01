@@ -79,6 +79,40 @@ create policy "Invitations can be updated" on public.trip_invitations for update
 
 alter publication supabase_realtime add table public.trip_invitations;
 
+-- Chat Messages (group chat per trip)
+create table public.chat_messages (
+  id uuid default uuid_generate_v4() primary key,
+  trip_id uuid references public.trips(id) on delete cascade not null,
+  user_id uuid not null,
+  user_name text not null default 'Traveler',
+  text text not null,
+  created_at timestamptz default now() not null
+);
+
+alter table public.chat_messages enable row level security;
+create policy "Trip members can view chat" on public.chat_messages for select using (true);
+create policy "Anyone can send chat" on public.chat_messages for insert with check (true);
+
+alter publication supabase_realtime add table public.chat_messages;
+
+-- Activity Log (timeline of trip events)
+create table public.activity_log (
+  id uuid default uuid_generate_v4() primary key,
+  trip_id uuid references public.trips(id) on delete cascade not null,
+  user_id uuid not null,
+  user_name text not null default 'Traveler',
+  action_type text not null,
+  details text not null default '',
+  emoji text default '📝',
+  created_at timestamptz default now() not null
+);
+
+alter table public.activity_log enable row level security;
+create policy "Trip members can view activity" on public.activity_log for select using (true);
+create policy "Anyone can log activity" on public.activity_log for insert with check (true);
+
+alter publication supabase_realtime add table public.activity_log;
+
 -- Itinerary Items
 create table public.itinerary_items (
   id uuid default uuid_generate_v4() primary key,

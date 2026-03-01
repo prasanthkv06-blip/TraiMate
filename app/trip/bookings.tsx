@@ -16,8 +16,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
+import * as Crypto from 'expo-crypto';
 import { Colors, Fonts, FontSizes, Spacing, BorderRadius, Shadows } from '../../src/constants/theme';
 import { useTripContextSafe, getCurrencySymbol } from '../../src/contexts/TripContext';
+import { addActivityLog } from '../../src/services/tripService';
+import { getDeviceId } from '../../src/services/deviceUser';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -104,6 +107,8 @@ export default function BookingsScreen() {
   const [hCheckIn, setHCheckIn] = useState('');
   const [hCheckOut, setHCheckOut] = useState('');
 
+  const [deviceId, setDeviceId] = useState<string>('');
+
   const contentOpacity = useRef(new Animated.Value(0)).current;
   const cardScale = useRef(new Animated.Value(0.95)).current;
 
@@ -112,6 +117,10 @@ export default function BookingsScreen() {
       Animated.timing(contentOpacity, { toValue: 1, duration: 600, useNativeDriver: true }),
       Animated.spring(cardScale, { toValue: 1, friction: 8, tension: 40, useNativeDriver: true }),
     ]).start();
+  }, []);
+
+  useEffect(() => {
+    getDeviceId().then(setDeviceId);
   }, []);
 
   const toggleSection = (callback: () => void) => {
@@ -165,6 +174,20 @@ export default function BookingsScreen() {
       data.returnTime = fRetTime.trim();
     }
     setFlightData(data);
+
+    // Fire-and-forget activity log
+    if (params.tripId && deviceId) {
+      addActivityLog(params.tripId, {
+        id: Crypto.randomUUID(),
+        userId: deviceId,
+        userName: 'You',
+        actionType: 'booking_added',
+        details: `added a booking: ${fAirline.trim()} ${fFlightNumber.trim()} (${fFrom.trim().toUpperCase()} \u2192 ${fTo.trim().toUpperCase()})`,
+        emoji: '\u2708\uFE0F',
+        createdAt: new Date().toISOString(),
+      });
+    }
+
     toggleSection(() => setEditingFlight(false));
   };
 
@@ -196,6 +219,20 @@ export default function BookingsScreen() {
       checkIn: hCheckIn.trim(),
       checkOut: hCheckOut.trim(),
     });
+
+    // Fire-and-forget activity log
+    if (params.tripId && deviceId) {
+      addActivityLog(params.tripId, {
+        id: Crypto.randomUUID(),
+        userId: deviceId,
+        userName: 'You',
+        actionType: 'booking_added',
+        details: `added a booking: ${hName.trim()}`,
+        emoji: '\u2708\uFE0F',
+        createdAt: new Date().toISOString(),
+      });
+    }
+
     toggleSection(() => setEditingHotel(false));
   };
 

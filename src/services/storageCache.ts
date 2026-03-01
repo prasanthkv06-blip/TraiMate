@@ -12,6 +12,8 @@ const tripKey = (id: string) => `@traimate_trip_${id}`;
 
 // ── Trip index (list of trip metadata) ──────────────────────────────────
 
+export type TripVisibility = 'public' | 'private' | 'secret';
+
 export interface TripIndexEntry {
   id: string;
   name: string;
@@ -24,6 +26,7 @@ export interface TripIndexEntry {
   createdBy: string;
   createdAt: string;
   memberCount: number;
+  visibility?: TripVisibility;
 }
 
 export async function saveTripsIndex(trips: TripIndexEntry[]): Promise<void> {
@@ -68,6 +71,9 @@ export interface TripBlob {
   packingItems: PackingItemLocal[];
   invitations?: InvitationLocal[];
   members?: TripMemberLocal[];
+  polls?: PollLocal[];
+  activityLog?: ActivityLogEntry[];
+  chatMessages?: ChatMessageLocal[];
 }
 
 export interface TripMemberLocal {
@@ -76,6 +82,40 @@ export interface TripMemberLocal {
   name: string;
   role: 'organizer' | 'co-organizer' | 'member' | 'viewer';
   joinedAt: string;
+}
+
+export interface PollOptionLocal {
+  id: string;
+  text: string;
+  votes: string[];
+}
+
+export interface PollLocal {
+  id: string;
+  question: string;
+  emoji: string;
+  options: PollOptionLocal[];
+  createdBy: string;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface ActivityLogEntry {
+  id: string;
+  userId: string;
+  userName: string;
+  actionType: 'member_joined' | 'expense_added' | 'itinerary_updated' | 'poll_created' | 'poll_voted' | 'journal_added' | 'trip_updated' | 'packing_updated' | 'booking_added' | 'chat_message';
+  details: string;
+  emoji: string;
+  createdAt: string;
+}
+
+export interface ChatMessageLocal {
+  id: string;
+  userId: string;
+  userName: string;
+  text: string;
+  createdAt: string;
 }
 
 export interface TripExpenseLocal {
@@ -96,6 +136,7 @@ export interface PackingItemLocal {
   emoji: string;
   category: string;
   packed: boolean;
+  assignedTo?: string; // user name or 'Everyone'
 }
 
 export async function saveTripLocally(tripId: string, data: TripBlob): Promise<void> {

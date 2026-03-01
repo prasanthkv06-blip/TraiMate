@@ -12,8 +12,11 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
+import * as Crypto from 'expo-crypto';
 import { Colors, Fonts, FontSizes, Spacing, BorderRadius, Shadows } from '../../src/constants/theme';
 import { getSmartPackingList, type PackingItem } from '../../src/constants/aiData';
+import { addActivityLog } from '../../src/services/tripService';
+import { getDeviceId } from '../../src/services/deviceUser';
 
 // ── Helpers ──
 function cleanDestinationName(d: string): string {
@@ -294,6 +297,11 @@ export default function PackingScreen() {
   const [selectedCategory, setSelectedCategory] = useState('Essentials');
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [deviceId, setDeviceId] = useState<string>('');
+
+  useEffect(() => {
+    getDeviceId().then(setDeviceId);
+  }, []);
 
   // Animations
   const headerAnim = useRef(new Animated.Value(0)).current;
@@ -402,11 +410,25 @@ export default function PackingScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const newItem: PackingItem = {
       name: newItemText.trim(),
-      emoji: '📦',
+      emoji: '\u{1F4E6}',
       essential: false,
       category: selectedCategory,
     };
     setCustomItems((prev) => [...prev, newItem]);
+
+    // Fire-and-forget activity log
+    if (params.tripId && deviceId) {
+      addActivityLog(params.tripId, {
+        id: Crypto.randomUUID(),
+        userId: deviceId,
+        userName: 'You',
+        actionType: 'packing_updated',
+        details: `updated the packing list`,
+        emoji: '\u{1F392}',
+        createdAt: new Date().toISOString(),
+      });
+    }
+
     setNewItemText('');
     setShowAddForm(false);
     // Expand the category if collapsed
@@ -415,7 +437,7 @@ export default function PackingScreen() {
       next.delete(selectedCategory);
       return next;
     });
-  }, [newItemText, selectedCategory]);
+  }, [newItemText, selectedCategory, params.tripId, deviceId]);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>

@@ -23,6 +23,7 @@ export interface ItineraryItem {
   aiTip?: string;        // AI insight
   notes?: string;        // User notes
   source: 'ai' | 'manual';
+  assignedTo?: string;   // squad member name
 }
 
 export interface ItineraryDay {

@@ -183,6 +183,32 @@ export interface Database {
         Insert: Omit<Database['public']['Tables']['bookings']['Row'], 'id' | 'created_at'>;
         Update: Partial<Database['public']['Tables']['bookings']['Insert']>;
       };
+      chat_messages: {
+        Row: {
+          id: string;
+          trip_id: string;
+          user_id: string;
+          user_name: string;
+          text: string;
+          created_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['chat_messages']['Row'], 'id' | 'created_at'>;
+        Update: Partial<Database['public']['Tables']['chat_messages']['Insert']>;
+      };
+      activity_log: {
+        Row: {
+          id: string;
+          trip_id: string;
+          user_id: string;
+          user_name: string;
+          action_type: string;
+          details: string;
+          emoji: string;
+          created_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['activity_log']['Row'], 'id' | 'created_at'>;
+        Update: Partial<Database['public']['Tables']['activity_log']['Insert']>;
+      };
     };
   };
 }
@@ -201,3 +227,5 @@ export type Notification = Database['public']['Tables']['notifications']['Row'];
 export type JournalEntry = Database['public']['Tables']['journal_entries']['Row'];
 export type Booking = Database['public']['Tables']['bookings']['Row'];
 export type TripInvitation = Database['public']['Tables']['trip_invitations']['Row'];
+export type ChatMessage = Database['public']['Tables']['chat_messages']['Row'];
+export type ActivityLog = Database['public']['Tables']['activity_log']['Row'];

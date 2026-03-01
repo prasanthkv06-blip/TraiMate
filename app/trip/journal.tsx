@@ -18,8 +18,11 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
+import * as Crypto from 'expo-crypto';
 import { Colors, Fonts, FontSizes, Spacing, BorderRadius, Shadows } from '../../src/constants/theme';
 import { useTripContext, getCurrencySymbol } from '../../src/contexts/TripContext';
+import { addActivityLog } from '../../src/services/tripService';
+import { getDeviceId } from '../../src/services/deviceUser';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const PHOTO_COL_WIDTH = (SCREEN_WIDTH - Spacing.xl * 2 - Spacing.xl * 2 - 10) / 2;
@@ -93,6 +96,11 @@ export default function JournalScreen() {
   const [showCamera, setShowCamera] = useState(false);
   const cameraRef = useRef<CameraView>(null);
   const [permission, requestPermission] = useCameraPermissions();
+  const [deviceId, setDeviceId] = useState<string>('');
+
+  useEffect(() => {
+    getDeviceId().then(setDeviceId);
+  }, []);
 
   const contentOpacity = useRef(new Animated.Value(0)).current;
   const contentTranslateY = useRef(new Animated.Value(18)).current;
@@ -155,6 +163,20 @@ export default function JournalScreen() {
     if (!draftText.trim()) return;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     tripCtx.setJournalEntry(selectedDay, draftText.trim());
+
+    // Fire-and-forget activity log
+    if (params.tripId && deviceId) {
+      addActivityLog(params.tripId, {
+        id: Crypto.randomUUID(),
+        userId: deviceId,
+        userName: 'You',
+        actionType: 'journal_added',
+        details: `wrote in the trip journal`,
+        emoji: '\u{1F4DD}',
+        createdAt: new Date().toISOString(),
+      });
+    }
+
     setDraftText('');
   };
 

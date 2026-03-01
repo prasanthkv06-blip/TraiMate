@@ -316,3 +316,101 @@ export async function loadPackingItems(tripId: string): Promise<PackingItemLocal
   const blob = await loadTripLocally(tripId);
   return blob?.packingItems || [];
 }
+
+// ── Polls ──────────────────────────────────────────────────────────────
+
+export async function savePolls(tripId: string, polls: import('./storageCache').PollLocal[]): Promise<void> {
+  const blob = await loadTripLocally(tripId);
+  if (blob) {
+    blob.polls = polls;
+    await saveTripLocally(tripId, blob);
+  }
+}
+
+export async function loadPolls(tripId: string): Promise<import('./storageCache').PollLocal[]> {
+  const blob = await loadTripLocally(tripId);
+  return blob?.polls || [];
+}
+
+// ── Activity Log ───────────────────────────────────────────────────────
+
+export async function addActivityLog(
+  tripId: string,
+  entry: import('./storageCache').ActivityLogEntry,
+): Promise<void> {
+  const blob = await loadTripLocally(tripId);
+  if (blob) {
+    blob.activityLog = blob.activityLog || [];
+    blob.activityLog.unshift(entry);
+    // Keep max 100 entries
+    if (blob.activityLog.length > 100) blob.activityLog = blob.activityLog.slice(0, 100);
+    await saveTripLocally(tripId, blob);
+  }
+}
+
+export async function loadActivityLog(tripId: string): Promise<import('./storageCache').ActivityLogEntry[]> {
+  const blob = await loadTripLocally(tripId);
+  return blob?.activityLog || [];
+}
+
+// ── Chat Messages ──────────────────────────────────────────────────────
+
+export async function addChatMessage(
+  tripId: string,
+  message: import('./storageCache').ChatMessageLocal,
+): Promise<void> {
+  const blob = await loadTripLocally(tripId);
+  if (blob) {
+    blob.chatMessages = blob.chatMessages || [];
+    blob.chatMessages.push(message);
+    await saveTripLocally(tripId, blob);
+  }
+
+  supabaseSafe(async () => {
+    await supabase.from('chat_messages').insert({
+      id: message.id,
+      trip_id: tripId,
+      user_id: message.userId,
+      user_name: message.userName,
+      text: message.text,
+    } as any);
+  });
+}
+
+export async function loadChatMessages(tripId: string): Promise<import('./storageCache').ChatMessageLocal[]> {
+  const blob = await loadTripLocally(tripId);
+  return blob?.chatMessages || [];
+}
+
+// ── User Role ───────────────────────────────────────────────────────────
+
+export async function getUserRole(tripId: string): Promise<import('../utils/permissions').TripRole> {
+  const deviceId = await getDeviceId();
+  const blob = await loadTripLocally(tripId);
+  if (!blob?.members) return 'organizer'; // creator defaults to organizer
+  const me = blob.members.find(m => m.userId === deviceId);
+  return (me?.role as import('../utils/permissions').TripRole) || 'organizer';
+}
+
+// ── Trip Visibility ─────────────────────────────────────────────────────
+
+export async function setTripVisibility(
+  tripId: string,
+  visibility: import('./storageCache').TripVisibility,
+): Promise<void> {
+  // Update in trip blob
+  const blob = await loadTripLocally(tripId);
+  if (blob) {
+    blob.meta.visibility = visibility;
+    await saveTripLocally(tripId, blob);
+  }
+  // Update in trips index
+  const index = await loadTripsIndex();
+  const updated = index.map(t => t.id === tripId ? { ...t, visibility } : t);
+  await saveTripsIndex(updated);
+}
+
+export async function getTripVisibility(tripId: string): Promise<import('./storageCache').TripVisibility> {
+  const blob = await loadTripLocally(tripId);
+  return blob?.meta.visibility || 'private';
+}

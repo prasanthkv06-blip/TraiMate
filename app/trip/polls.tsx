@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,68 +11,21 @@ import {
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
+import * as Crypto from 'expo-crypto';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Fonts, FontSizes, Spacing, BorderRadius, Shadows } from '../../src/constants/theme';
+import { savePolls, loadPolls, addActivityLog } from '../../src/services/tripService';
+import type { PollLocal, ActivityLogEntry } from '../../src/services/storageCache';
 
-interface PollOption {
-  id: string;
-  text: string;
-  votes: string[];
-}
-
-interface Poll {
-  id: string;
-  question: string;
-  emoji: string;
-  options: PollOption[];
-  createdBy: string;
-  isActive: boolean;
-}
-
-const SAMPLE_POLLS: Poll[] = [
-  {
-    id: '1',
-    question: 'Where should we eat tonight?',
-    emoji: '🍽️',
-    createdBy: 'Alex',
-    isActive: true,
-    options: [
-      { id: 'a', text: 'Sushi at Tsukiji', votes: ['Alex', 'Sam'] },
-      { id: 'b', text: 'Ramen in Shibuya', votes: ['Jordan'] },
-      { id: 'c', text: 'Yakitori alley', votes: ['Riley', 'Sam'] },
-    ],
-  },
-  {
-    id: '2',
-    question: 'Day trip tomorrow?',
-    emoji: '🗻',
-    createdBy: 'Sam',
-    isActive: true,
-    options: [
-      { id: 'a', text: 'Mount Fuji', votes: ['Alex', 'Sam', 'Jordan'] },
-      { id: 'b', text: 'Nikko temples', votes: ['Riley'] },
-      { id: 'c', text: 'Stay in Tokyo', votes: [] },
-    ],
-  },
-  {
-    id: '3',
-    question: 'Best moment of the trip?',
-    emoji: '✨',
-    createdBy: 'Jordan',
-    isActive: false,
-    options: [
-      { id: 'a', text: 'Sunrise at Fushimi Inari', votes: ['Alex', 'Jordan', 'Riley'] },
-      { id: 'b', text: 'Karaoke night', votes: ['Sam'] },
-      { id: 'c', text: 'Tea ceremony', votes: ['Sam', 'Riley'] },
-    ],
-  },
-];
+type Poll = PollLocal;
 
 export default function PollsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ tripId?: string; destination?: string }>();
+  const tripId = params.tripId || '';
   const [polls, setPolls] = useState<Poll[]>([]);
   const [myVotes, setMyVotes] = useState<Record<string, string>>({});
   const [showCreatePoll, setShowCreatePoll] = useState(false);
@@ -80,46 +33,90 @@ export default function PollsScreen() {
   const [newOptions, setNewOptions] = useState(['', '']);
 
   const contentOpacity = useRef(new Animated.Value(0)).current;
+
+  const loadPollData = useCallback(async () => {
+    if (!tripId) return;
+    const saved = await loadPolls(tripId);
+    if (saved.length > 0) setPolls(saved);
+  }, [tripId]);
+
   useEffect(() => {
+    loadPollData();
     Animated.timing(contentOpacity, { toValue: 1, duration: 500, useNativeDriver: true }).start();
-  }, []);
+  }, [loadPollData]);
+
+  useFocusEffect(useCallback(() => { loadPollData(); }, [loadPollData]));
+
+  // Persist polls whenever they change
+  const persistPolls = useCallback((updated: Poll[]) => {
+    setPolls(updated);
+    if (tripId) savePolls(tripId, updated);
+  }, [tripId]);
 
   const handleVote = (pollId: string, optionId: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setMyVotes((prev) => ({ ...prev, [pollId]: optionId }));
-    setPolls((prev) =>
-      prev.map((poll) => {
-        if (poll.id !== pollId) return poll;
-        return {
-          ...poll,
-          options: poll.options.map((opt) => ({
-            ...opt,
-            votes: opt.id === optionId
-              ? [...opt.votes.filter((v) => v !== 'You'), 'You']
-              : opt.votes.filter((v) => v !== 'You'),
-          })),
-        };
-      })
-    );
+    const updated = polls.map((poll) => {
+      if (poll.id !== pollId) return poll;
+      return {
+        ...poll,
+        options: poll.options.map((opt) => ({
+          ...opt,
+          votes: opt.id === optionId
+            ? [...opt.votes.filter((v) => v !== 'You'), 'You']
+            : opt.votes.filter((v) => v !== 'You'),
+        })),
+      };
+    });
+    persistPolls(updated);
+
+    // Log activity
+    if (tripId) {
+      const poll = polls.find(p => p.id === pollId);
+      const option = poll?.options.find(o => o.id === optionId);
+      addActivityLog(tripId, {
+        id: Crypto.randomUUID(),
+        userId: 'you',
+        userName: 'You',
+        actionType: 'poll_voted',
+        details: `Voted "${option?.text}" on "${poll?.question}"`,
+        emoji: '🗳️',
+        createdAt: new Date().toISOString(),
+      });
+    }
   };
 
   const handleCreatePoll = () => {
     if (!newQuestion.trim() || newOptions.filter(o => o.trim()).length < 2) return;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     const newPoll: Poll = {
-      id: Date.now().toString(),
+      id: Crypto.randomUUID(),
       question: newQuestion.trim(),
       emoji: '📊',
       createdBy: 'You',
       isActive: true,
+      createdAt: new Date().toISOString(),
       options: newOptions
         .filter(o => o.trim())
         .map((text, i) => ({ id: `opt-${i}`, text: text.trim(), votes: [] })),
     };
-    setPolls(prev => [newPoll, ...prev]);
+    persistPolls([newPoll, ...polls]);
     setNewQuestion('');
     setNewOptions(['', '']);
     setShowCreatePoll(false);
+
+    // Log activity
+    if (tripId) {
+      addActivityLog(tripId, {
+        id: Crypto.randomUUID(),
+        userId: 'you',
+        userName: 'You',
+        actionType: 'poll_created',
+        details: `Created poll "${newQuestion.trim()}"`,
+        emoji: '📊',
+        createdAt: new Date().toISOString(),
+      });
+    }
   };
 
   return (

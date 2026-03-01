@@ -60,6 +60,9 @@ import {
 import { generateDailyBriefing, type LiveContext } from '../../src/lib/gemini';
 import { getCurrencySymbol } from '../../src/lib/exchangeRate';
 import { useTripContext } from '../../src/contexts/TripContext';
+import { getUserRole, getTripVisibility, setTripVisibility } from '../../src/services/tripService';
+import { hasPermission, type TripRole } from '../../src/utils/permissions';
+import type { TripVisibility } from '../../src/services/storageCache';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -284,10 +287,19 @@ export default function TripDetailScreen() {
   const [formDuration, setFormDuration] = useState('');
   const [formLocation, setFormLocation] = useState('');
   const [formNotes, setFormNotes] = useState('');
+  const [formAssignedTo, setFormAssignedTo] = useState('');
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [showDurationPicker, setShowDurationPicker] = useState(false);
   const [showTripMenu, setShowTripMenu] = useState(false);
   const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(new Set());
+
+  // ── Role-based permissions ─────────────────────────────────────────────
+  const [userRole, setUserRole] = useState<TripRole>('organizer');
+  const canEditItinerary = hasPermission(userRole, 'canEditItinerary');
+  const canInvite = hasPermission(userRole, 'canInvite');
+  const canDeleteTrip = hasPermission(userRole, 'canDeleteTrip');
+  const canEditTrip = hasPermission(userRole, 'canEditTrip');
+  const [tripVisibility, setTripVisibilityState] = useState<TripVisibility>('private');
 
   // ── Form state for add day ─────────────────────────────────────────────
   const [newDayTitle, setNewDayTitle] = useState('');
@@ -316,6 +328,14 @@ export default function TripDetailScreen() {
       useNativeDriver: true,
     }).start();
   }, []);
+
+  // Load user role and trip visibility
+  useEffect(() => {
+    if (params.id) {
+      getUserRole(params.id).then(setUserRole);
+      getTripVisibility(params.id).then(setTripVisibilityState);
+    }
+  }, [params.id]);
 
   useEffect(() => {
     const pulse = Animated.loop(
@@ -692,6 +712,7 @@ export default function TripDetailScreen() {
     setFormDuration('');
     setFormLocation('');
     setFormNotes('');
+    setFormAssignedTo('');
     setShowTimePicker(false);
     setShowDurationPicker(false);
     setShowAddItemSheet(true);
@@ -708,6 +729,7 @@ export default function TripDetailScreen() {
     setFormDuration(item.duration || '');
     setFormLocation(item.location || '');
     setFormNotes(item.notes || '');
+    setFormAssignedTo(item.assignedTo || '');
     setShowTimePicker(false);
     setShowDurationPicker(false);
     setShowAddItemSheet(true);
@@ -741,6 +763,7 @@ export default function TripDetailScreen() {
                         location: formLocation || undefined,
                         notes: formNotes || undefined,
                         emoji: CATEGORY_ICONS[formType] || '📍',
+                        assignedTo: formAssignedTo || undefined,
                       }
                     : it,
                 ),
@@ -750,14 +773,17 @@ export default function TripDetailScreen() {
       );
     } else {
       // Add new
-      const newItem = createNewItem({
-        title: formTitle.trim(),
-        type: formType,
-        time: formTime,
-        duration: formDuration || undefined,
-        location: formLocation || undefined,
-        notes: formNotes || undefined,
-      });
+      const newItem = {
+        ...createNewItem({
+          title: formTitle.trim(),
+          type: formType,
+          time: formTime,
+          duration: formDuration || undefined,
+          location: formLocation || undefined,
+          notes: formNotes || undefined,
+        }),
+        assignedTo: formAssignedTo || undefined,
+      };
       setItinerary(prev =>
         prev.map(day =>
           day.id === editingDayId
@@ -768,7 +794,7 @@ export default function TripDetailScreen() {
     }
 
     setShowAddItemSheet(false);
-  }, [formTitle, formType, formTime, formDuration, formLocation, formNotes, editingDayId, editingItem]);
+  }, [formTitle, formType, formTime, formDuration, formLocation, formNotes, formAssignedTo, editingDayId, editingItem]);
 
   // ── Delete item ────────────────────────────────────────────────────────
   const handleDeleteItem = useCallback((dayId: string, itemId: string) => {
@@ -994,20 +1020,24 @@ export default function TripDetailScreen() {
                       <Text style={styles.squadAvatarText}>{m.initial}</Text>
                     </View>
                   ))}
-                  <Pressable
-                    onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowInviteSheet(true); }}
-                    style={[styles.squadAvatar, styles.squadAddBtn, { marginLeft: -8, zIndex: 1 }]}
-                  >
-                    <Text style={styles.squadAddText}>+</Text>
-                  </Pressable>
+                  {canInvite && (
+                    <Pressable
+                      onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowInviteSheet(true); }}
+                      style={[styles.squadAvatar, styles.squadAddBtn, { marginLeft: -8, zIndex: 1 }]}
+                    >
+                      <Text style={styles.squadAddText}>+</Text>
+                    </Pressable>
+                  )}
                 </View>
                 <View style={{ flex: 1, marginLeft: 12 }}>
                   <Text style={styles.squadLabel}>
                     {squad.length === 1 ? 'Just you so far' : `${squad.length} in the squad`}
                   </Text>
-                  <Pressable onPress={() => setShowInviteSheet(true)} hitSlop={8}>
-                    <Text style={styles.squadInviteLink}>+ Invite your crew</Text>
-                  </Pressable>
+                  {canInvite && (
+                    <Pressable onPress={() => setShowInviteSheet(true)} hitSlop={8}>
+                      <Text style={styles.squadInviteLink}>+ Invite your crew</Text>
+                    </Pressable>
+                  )}
                 </View>
               </View>
             )}
@@ -1232,18 +1262,20 @@ export default function TripDetailScreen() {
                             )}
                             <View style={{ flex: 1 }} />
                             {/* Options menu */}
-                            <Pressable
-                              onPress={() => {
-                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                                setShowItemMenu(
-                                  showItemMenu?.itemId === item.id ? null : { dayId: day.id, itemId: item.id },
-                                );
-                              }}
-                              hitSlop={12}
-                              style={styles.itemMenuBtn}
-                            >
-                              <Ionicons name="ellipsis-horizontal" size={16} color={Colors.textMuted} />
-                            </Pressable>
+                            {canEditItinerary && (
+                              <Pressable
+                                onPress={() => {
+                                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                  setShowItemMenu(
+                                    showItemMenu?.itemId === item.id ? null : { dayId: day.id, itemId: item.id },
+                                  );
+                                }}
+                                hitSlop={12}
+                                style={styles.itemMenuBtn}
+                              >
+                                <Ionicons name="ellipsis-horizontal" size={16} color={Colors.textMuted} />
+                              </Pressable>
+                            )}
                           </View>
 
                           <View style={styles.itineraryContent}>
@@ -1256,6 +1288,14 @@ export default function TripDetailScreen() {
                             </View>
                             <Text style={styles.itineraryTitle}>{item.title}</Text>
                           </View>
+
+                          {/* Assigned To */}
+                          {item.assignedTo && (
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
+                              <Ionicons name="person-outline" size={12} color={Colors.accent} />
+                              <Text style={{ fontFamily: Fonts.bodySemiBold, fontSize: 11, color: Colors.accent }}>{item.assignedTo}</Text>
+                            </View>
+                          )}
 
                           {/* Location */}
                           {item.location && (
@@ -1327,26 +1367,30 @@ export default function TripDetailScreen() {
                     )}
 
                     {/* Add activity button */}
-                    <Pressable
-                      onPress={() => openAddItem(day.id)}
-                      style={({ pressed }) => [styles.addItemBtn, pressed && { opacity: 0.7 }]}
-                    >
-                      <Text style={styles.addItemBtnText}>+ Add activity</Text>
-                    </Pressable>
+                    {canEditItinerary && (
+                      <Pressable
+                        onPress={() => openAddItem(day.id)}
+                        style={({ pressed }) => [styles.addItemBtn, pressed && { opacity: 0.7 }]}
+                      >
+                        <Text style={styles.addItemBtnText}>+ Add activity</Text>
+                      </Pressable>
+                    )}
                   </View>
                 ))}
 
                 {/* Add another day */}
-                <Pressable
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    setNewDayTitle('');
-                    setShowAddDaySheet(true);
-                  }}
-                  style={({ pressed }) => [styles.addDayBtn, pressed && { transform: [{ scale: 0.97 }] }]}
-                >
-                  <Text style={styles.addDayBtnText}>+ Add another day</Text>
-                </Pressable>
+                {canEditItinerary && (
+                  <Pressable
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setNewDayTitle('');
+                      setShowAddDaySheet(true);
+                    }}
+                    style={({ pressed }) => [styles.addDayBtn, pressed && { transform: [{ scale: 0.97 }] }]}
+                  >
+                    <Text style={styles.addDayBtnText}>+ Add another day</Text>
+                  </Pressable>
+                )}
               </View>
             )}
 
@@ -1358,25 +1402,19 @@ export default function TripDetailScreen() {
             <View style={styles.essentialsGrid}>
               {[
                 { icon: 'wallet-outline' as const, label: 'Spend', route: '/trip/expenses' },
-                { icon: 'airplane-outline' as const, label: 'Booking', route: '/trip/bookings' },
+                { icon: 'chatbubbles-outline' as const, label: 'Chat', route: '/trip/chat' },
                 { icon: 'stats-chart-outline' as const, label: 'Polls', route: '/trip/polls' },
+                { icon: 'time-outline' as const, label: 'Activity', route: '/trip/activity' },
               ].map((f, i) => (
                 <Pressable
                   key={`ess-${i}`}
-                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push({ pathname: f.route as any, params: { tripId: params.id, destination: params.destination || '' } }); }}
+                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push({ pathname: f.route as any, params: { tripId: params.id, tripName: trip.name, destination: params.destination || '' } }); }}
                   style={({ pressed }) => [styles.essentialCard, pressed && { transform: [{ scale: 0.93 }] }]}
                 >
                   <Ionicons name={f.icon} size={22} color={Colors.accent} />
                   <Text style={styles.essentialCardLabel}>{f.label}</Text>
                 </Pressable>
               ))}
-              <Pressable
-                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowAIPicksSheet(true); }}
-                style={({ pressed }) => [styles.essentialCard, styles.essentialCardAI, pressed && { transform: [{ scale: 0.93 }] }]}
-              >
-                <Ionicons name="sparkles-outline" size={22} color={Colors.sage} />
-                <Text style={[styles.essentialCardLabel, { color: Colors.sage }]}>AI Picks</Text>
-              </Pressable>
             </View>
           </View>
           </View>
@@ -2084,7 +2122,7 @@ export default function TripDetailScreen() {
                       <Ionicons name="arrow-forward" size={18} color="rgba(255,255,255,0.6)" />
                     </View>
                     <Text style={styles.dockCardTitle}>Polls</Text>
-                    <Text style={styles.dockCardSub}>Vote with your travel crew</Text>
+                    <Text style={styles.dockCardSub}>Vote with your crew</Text>
                     <View style={styles.dockCardFeatures}>
                       <View style={styles.dockCardFeaturePill}>
                         <Ionicons name="people" size={11} color="rgba(255,255,255,0.9)" />
@@ -2093,6 +2131,80 @@ export default function TripDetailScreen() {
                       <View style={styles.dockCardFeaturePill}>
                         <Ionicons name="checkmark-circle" size={11} color="rgba(255,255,255,0.9)" />
                         <Text style={styles.dockCardFeatureText}>Vote</Text>
+                      </View>
+                    </View>
+                  </LinearGradient>
+                </Pressable>
+
+                {/* Chat Card */}
+                <Pressable
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                    setDockExpanded(false);
+                    Animated.spring(dockAnim, { toValue: 0, useNativeDriver: true, friction: 8 }).start();
+                    router.push({ pathname: '/trip/chat' as any, params: { tripId: params.id, tripName: trip.name } });
+                  }}
+                  style={({ pressed }) => [styles.dockCard, pressed && { transform: [{ scale: 0.95 }] }]}
+                >
+                  <LinearGradient
+                    colors={['#4A8BA8', '#2E6B85']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.dockCardGradient}
+                  >
+                    <View style={styles.dockCardIconRow}>
+                      <View style={styles.dockCardIconCircle}>
+                        <Ionicons name="chatbubbles" size={22} color="#4A8BA8" />
+                      </View>
+                      <Ionicons name="arrow-forward" size={18} color="rgba(255,255,255,0.6)" />
+                    </View>
+                    <Text style={styles.dockCardTitle}>Group Chat</Text>
+                    <Text style={styles.dockCardSub}>Talk with your squad</Text>
+                    <View style={styles.dockCardFeatures}>
+                      <View style={styles.dockCardFeaturePill}>
+                        <Ionicons name="chatbubble" size={11} color="rgba(255,255,255,0.9)" />
+                        <Text style={styles.dockCardFeatureText}>Message</Text>
+                      </View>
+                      <View style={styles.dockCardFeaturePill}>
+                        <Ionicons name="people" size={11} color="rgba(255,255,255,0.9)" />
+                        <Text style={styles.dockCardFeatureText}>Squad</Text>
+                      </View>
+                    </View>
+                  </LinearGradient>
+                </Pressable>
+
+                {/* Activity Card */}
+                <Pressable
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                    setDockExpanded(false);
+                    Animated.spring(dockAnim, { toValue: 0, useNativeDriver: true, friction: 8 }).start();
+                    router.push({ pathname: '/trip/activity' as any, params: { tripId: params.id } });
+                  }}
+                  style={({ pressed }) => [styles.dockCard, pressed && { transform: [{ scale: 0.95 }] }]}
+                >
+                  <LinearGradient
+                    colors={['#D4A574', '#B07A50']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.dockCardGradient}
+                  >
+                    <View style={styles.dockCardIconRow}>
+                      <View style={styles.dockCardIconCircle}>
+                        <Ionicons name="time" size={22} color="#D4A574" />
+                      </View>
+                      <Ionicons name="arrow-forward" size={18} color="rgba(255,255,255,0.6)" />
+                    </View>
+                    <Text style={styles.dockCardTitle}>Activity</Text>
+                    <Text style={styles.dockCardSub}>See what your squad's been up to</Text>
+                    <View style={styles.dockCardFeatures}>
+                      <View style={styles.dockCardFeaturePill}>
+                        <Ionicons name="list" size={11} color="rgba(255,255,255,0.9)" />
+                        <Text style={styles.dockCardFeatureText}>Feed</Text>
+                      </View>
+                      <View style={styles.dockCardFeaturePill}>
+                        <Ionicons name="notifications" size={11} color="rgba(255,255,255,0.9)" />
+                        <Text style={styles.dockCardFeatureText}>Updates</Text>
                       </View>
                     </View>
                   </LinearGradient>
@@ -2127,6 +2239,7 @@ export default function TripDetailScreen() {
                       <View style={[styles.dockFabDot, { backgroundColor: '#5E8A5A' }]} />
                       <View style={[styles.dockFabDot, { backgroundColor: '#B07A50' }]} />
                       <View style={[styles.dockFabDot, { backgroundColor: '#6366F1' }]} />
+                      <View style={[styles.dockFabDot, { backgroundColor: '#4A8BA8' }]} />
                       <Text style={styles.dockFabLabel}>Quick Actions</Text>
                       <Ionicons name="chevron-up" size={16} color="rgba(255,255,255,0.5)" />
                     </>
@@ -2667,6 +2780,35 @@ export default function TripDetailScreen() {
                 maxLength={200}
               />
 
+              {/* Assign to */}
+              {!isSoloTrip && (
+                <>
+                  <Text style={styles.formLabel}>ASSIGN TO (optional)</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: Spacing.md }}>
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      <Pressable
+                        onPress={() => setFormAssignedTo('')}
+                        style={[styles.assignChip, !formAssignedTo && styles.assignChipActive]}
+                      >
+                        <Text style={[styles.assignChipText, !formAssignedTo && styles.assignChipTextActive]}>Anyone</Text>
+                      </Pressable>
+                      {squad.map(m => (
+                        <Pressable
+                          key={m.id}
+                          onPress={() => setFormAssignedTo(m.name)}
+                          style={[styles.assignChip, formAssignedTo === m.name && styles.assignChipActive]}
+                        >
+                          <View style={[styles.assignChipAvatar, { backgroundColor: m.color }]}>
+                            <Text style={{ fontFamily: Fonts.bodySemiBold, fontSize: 10, color: Colors.white }}>{m.initial}</Text>
+                          </View>
+                          <Text style={[styles.assignChipText, formAssignedTo === m.name && styles.assignChipTextActive]}>{m.name}</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  </ScrollView>
+                </>
+              )}
+
               {/* Save button */}
               <Pressable
                 onPress={handleSaveItem}
@@ -2754,6 +2896,7 @@ export default function TripDetailScreen() {
               {[
                 { icon: 'briefcase-outline' as const, label: 'Packing', desc: 'Smart packing list', route: '/trip/packing', color: '#5E8A5A' },
                 { icon: 'cash-outline' as const, label: 'Budget', desc: 'Cost breakdown', route: '/trip/budget', color: '#B07A50' },
+                { icon: 'airplane-outline' as const, label: 'Bookings', desc: 'Flights & hotels', route: '/trip/bookings', color: '#C75450' },
                 { icon: 'calendar-outline' as const, label: 'Best Time', desc: 'When to visit', route: '/trip/best-time', color: '#4A8BA8' },
                 { icon: 'document-text-outline' as const, label: 'Visa Info', desc: 'Entry requirements', route: '/trip/visa', color: '#9B59B6' },
               ].map((f, i) => (
@@ -2808,13 +2951,36 @@ export default function TripDetailScreen() {
                 </Pressable>
               ))}
             </View>
-            <Pressable
-              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowTripMenu(false); crossAlert('Delete Trip', 'Coming Soon'); }}
-              style={styles.tripMenuDeleteRow}
-            >
-              <Ionicons name="trash-outline" size={15} color={Colors.error} />
-              <Text style={styles.tripMenuDeleteLabel}>Delete Trip</Text>
-            </Pressable>
+            {canEditTrip && (
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  const next: TripVisibility = tripVisibility === 'public' ? 'private' : tripVisibility === 'private' ? 'secret' : 'public';
+                  setTripVisibilityState(next);
+                  if (params.id) setTripVisibility(params.id, next);
+                }}
+                style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, gap: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: Colors.border }}
+              >
+                <Ionicons
+                  name={tripVisibility === 'public' ? 'globe-outline' : tripVisibility === 'private' ? 'lock-closed-outline' : 'eye-off-outline'}
+                  size={15}
+                  color={Colors.textSecondary}
+                />
+                <Text style={{ fontFamily: Fonts.bodySemiBold, fontSize: FontSizes.sm, color: Colors.textSecondary, flex: 1 }}>
+                  {tripVisibility === 'public' ? 'Public' : tripVisibility === 'private' ? 'Private' : 'Secret'}
+                </Text>
+                <Text style={{ fontFamily: Fonts.body, fontSize: FontSizes.xs, color: Colors.textMuted }}>Tap to change</Text>
+              </Pressable>
+            )}
+            {canDeleteTrip && (
+              <Pressable
+                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowTripMenu(false); crossAlert('Delete Trip', 'Coming Soon'); }}
+                style={styles.tripMenuDeleteRow}
+              >
+                <Ionicons name="trash-outline" size={15} color={Colors.error} />
+                <Text style={styles.tripMenuDeleteLabel}>Delete Trip</Text>
+              </Pressable>
+            )}
           </View>
         </Pressable>
       )}
@@ -3704,6 +3870,36 @@ const styles = StyleSheet.create({
   },
   formRow: {
     flexDirection: 'row',
+  },
+  assignChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: Colors.white,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+  },
+  assignChipActive: {
+    backgroundColor: Colors.accent,
+    borderColor: Colors.accent,
+  },
+  assignChipText: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: FontSizes.xs,
+    color: Colors.textSecondary,
+  },
+  assignChipTextActive: {
+    color: Colors.white,
+  },
+  assignChipAvatar: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   typeIconGrid: {
     flexDirection: 'row',

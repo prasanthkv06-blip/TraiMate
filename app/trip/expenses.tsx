@@ -17,8 +17,11 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
+import * as Crypto from 'expo-crypto';
 import { Colors, Fonts, FontSizes, Spacing, BorderRadius, Shadows } from '../../src/constants/theme';
 import { useTripContext, type TripExpense, getCurrencySymbol } from '../../src/contexts/TripContext';
+import { addActivityLog } from '../../src/services/tripService';
+import { getDeviceId } from '../../src/services/deviceUser';
 
 const CATEGORIES = [
   { id: 'food', icon: 'restaurant-outline' as const, label: 'Food' },
@@ -46,10 +49,15 @@ export default function ExpensesScreen() {
   const [receiptUri, setReceiptUri] = useState<string | null>(null);
   const cameraRef = useRef<CameraView>(null);
   const [permission, requestPermission] = useCameraPermissions();
+  const [deviceId, setDeviceId] = useState<string>('');
 
   const contentOpacity = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     Animated.timing(contentOpacity, { toValue: 1, duration: 500, useNativeDriver: true }).start();
+  }, []);
+
+  useEffect(() => {
+    getDeviceId().then(setDeviceId);
   }, []);
 
   const currSymbol = getCurrencySymbol(tripCtx.tripMeta.currency);
@@ -108,6 +116,20 @@ export default function ExpensesScreen() {
       receiptUri: receiptUri || undefined,
     };
     tripCtx.addExpense(newExpense);
+
+    // Fire-and-forget activity log
+    if (params.tripId && deviceId) {
+      addActivityLog(params.tripId, {
+        id: Crypto.randomUUID(),
+        userId: deviceId,
+        userName: 'You',
+        actionType: 'expense_added',
+        details: `added an expense: ${newTitle.trim()} (${currSymbol}${parseFloat(newAmount) || 0})`,
+        emoji: '\u{1F4B0}',
+        createdAt: new Date().toISOString(),
+      });
+    }
+
     setNewTitle('');
     setNewAmount('');
     setReceiptUri(null);

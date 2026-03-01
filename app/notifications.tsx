@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,103 +9,35 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Fonts, FontSizes, Spacing, BorderRadius, Shadows } from '../src/constants/theme';
-
-interface Notification {
-  id: string;
-  type: 'trip_invite' | 'expense_added' | 'poll_created' | 'itinerary_update' | 'member_joined' | 'reminder';
-  title: string;
-  body: string;
-  emoji: string;
-  tripName?: string;
-  read: boolean;
-  time: string;
-}
-
-const SAMPLE_NOTIFICATIONS: Notification[] = [
-  {
-    id: '1',
-    type: 'trip_invite',
-    title: 'Trip invitation',
-    body: 'Sam invited you to "Bali Wellness Retreat"',
-    emoji: '✉️',
-    tripName: 'Bali Wellness Retreat',
-    read: false,
-    time: '2m ago',
-  },
-  {
-    id: '2',
-    type: 'expense_added',
-    title: 'New expense',
-    body: 'Alex added "Sushi dinner" ($124.50) to Summer in Kyoto',
-    emoji: '💰',
-    tripName: 'Summer in Kyoto',
-    read: false,
-    time: '15m ago',
-  },
-  {
-    id: '3',
-    type: 'poll_created',
-    title: 'New poll',
-    body: 'Jordan created a poll: "Where should we eat tonight?"',
-    emoji: '📊',
-    tripName: 'Summer in Kyoto',
-    read: false,
-    time: '1h ago',
-  },
-  {
-    id: '4',
-    type: 'member_joined',
-    title: 'New member',
-    body: 'Riley joined Amalfi Coast Road Trip',
-    emoji: '👋',
-    tripName: 'Amalfi Coast Road Trip',
-    read: true,
-    time: '3h ago',
-  },
-  {
-    id: '5',
-    type: 'itinerary_update',
-    title: 'Itinerary updated',
-    body: 'Alex updated Day 2 of Summer in Kyoto',
-    emoji: '📝',
-    tripName: 'Summer in Kyoto',
-    read: true,
-    time: '5h ago',
-  },
-  {
-    id: '6',
-    type: 'reminder',
-    title: 'Trip reminder',
-    body: 'Summer in Kyoto starts in 3 days! Time to finish packing 🎒',
-    emoji: '⏰',
-    tripName: 'Summer in Kyoto',
-    read: true,
-    time: '1d ago',
-  },
-  {
-    id: '7',
-    type: 'expense_added',
-    title: 'Settle up reminder',
-    body: 'You owe Sam $42.50 for Amalfi Coast Road Trip',
-    emoji: '💳',
-    tripName: 'Amalfi Coast Road Trip',
-    read: true,
-    time: '2d ago',
-  },
-];
+import {
+  loadNotifications,
+  markNotificationRead,
+  markAllNotificationsRead,
+  timeAgo,
+  type LocalNotification,
+} from '../src/services/notificationService';
 
 export default function NotificationsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const [notifications, setNotifications] = useState(SAMPLE_NOTIFICATIONS);
+  const [notifications, setNotifications] = useState<LocalNotification[]>([]);
 
   const contentOpacity = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     Animated.timing(contentOpacity, { toValue: 1, duration: 500, useNativeDriver: true }).start();
   }, []);
+
+  const reload = useCallback(async () => {
+    const notifs = await loadNotifications();
+    setNotifications(notifs);
+  }, []);
+
+  useEffect(() => { reload(); }, [reload]);
+  useFocusEffect(useCallback(() => { reload(); }, [reload]));
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
@@ -114,11 +46,13 @@ export default function NotificationsScreen() {
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, read: true } : n))
     );
+    markNotificationRead(id);
   };
 
   const markAllRead = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    markAllNotificationsRead();
   };
 
   return (
@@ -146,6 +80,16 @@ export default function NotificationsScreen() {
         )}
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+          {notifications.length === 0 && (
+            <View style={{ alignItems: 'center', paddingVertical: 60, paddingHorizontal: 20 }}>
+              <Text style={{ fontSize: 48, marginBottom: 16 }}>🔔</Text>
+              <Text style={{ fontFamily: Fonts.heading, fontSize: FontSizes.xl, color: Colors.text, marginBottom: 8 }}>No notifications yet</Text>
+              <Text style={{ fontFamily: Fonts.body, fontSize: FontSizes.sm, color: Colors.textMuted, textAlign: 'center' }}>
+                Activity from your squad will show up here
+              </Text>
+            </View>
+          )}
+
           {/* New section */}
           {notifications.some((n) => !n.read) && (
             <Text style={styles.sectionLabel}>NEW</Text>
@@ -165,7 +109,7 @@ export default function NotificationsScreen() {
                 <View style={styles.notifBody}>
                   <Text style={styles.notifTitle}>{notif.title}</Text>
                   <Text style={styles.notifText}>{notif.body}</Text>
-                  <Text style={styles.notifTime}>{notif.time}</Text>
+                  <Text style={styles.notifTime}>{timeAgo(notif.time)}</Text>
                 </View>
               </Pressable>
             ))}
@@ -187,7 +131,7 @@ export default function NotificationsScreen() {
                 <View style={styles.notifBody}>
                   <Text style={[styles.notifTitle, styles.notifTitleRead]}>{notif.title}</Text>
                   <Text style={[styles.notifText, styles.notifTextRead]}>{notif.body}</Text>
-                  <Text style={styles.notifTime}>{notif.time}</Text>
+                  <Text style={styles.notifTime}>{timeAgo(notif.time)}</Text>
                 </View>
               </Pressable>
             ))}
