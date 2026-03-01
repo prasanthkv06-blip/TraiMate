@@ -14,7 +14,10 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.trailmate.app"
+      "bundleIdentifier": "com.trailmate.app",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -40,6 +43,12 @@
         "projectId": "55d8c8fc-85df-40d7-98bd-4af32872e379"
       }
     },
-    "owner": "prasanthkv06"
+    "owner": "prasanthkv06",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/55d8c8fc-85df-40d7-98bd-4af32872e379"
+    }
   }
 }
