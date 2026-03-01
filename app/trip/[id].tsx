@@ -806,40 +806,6 @@ export default function TripDetailScreen() {
           </View>
         </View>
 
-        {/* Trip options dropdown menu — compact grid */}
-        {showTripMenu && (
-          <Pressable style={styles.tripMenuOverlay} onPress={() => setShowTripMenu(false)}>
-            <View style={styles.tripMenuDropdown}>
-              <View style={styles.tripMenuGrid}>
-                {[
-                  { label: 'Share', icon: 'share-outline' as const, destructive: false, onPress: () => { setShowTripMenu(false); Share.share({ message: `Check out my trip to ${trip.destination}! ✈️` }); } },
-                  { label: 'Rename', icon: 'create-outline' as const, destructive: false, onPress: () => { setShowTripMenu(false); Alert.alert('Edit Trip Name', 'Coming Soon'); } },
-                  { label: 'Duplicate', icon: 'copy-outline' as const, destructive: false, onPress: () => { setShowTripMenu(false); Alert.alert('Duplicate Trip', 'Coming Soon'); } },
-                  { label: 'Export', icon: 'download-outline' as const, destructive: false, onPress: () => { setShowTripMenu(false); Alert.alert('Export Itinerary', 'Coming Soon'); } },
-                ].map((item) => (
-                  <Pressable
-                    key={item.label}
-                    onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); item.onPress(); }}
-                    style={styles.tripMenuGridItem}
-                  >
-                    <View style={styles.tripMenuGridIcon}>
-                      <Ionicons name={item.icon} size={18} color={Colors.text} />
-                    </View>
-                    <Text style={styles.tripMenuGridLabel}>{item.label}</Text>
-                  </Pressable>
-                ))}
-              </View>
-              <Pressable
-                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowTripMenu(false); Alert.alert('Delete Trip', 'Coming Soon'); }}
-                style={styles.tripMenuDeleteRow}
-              >
-                <Ionicons name="trash-outline" size={15} color={Colors.error} />
-                <Text style={styles.tripMenuDeleteLabel}>Delete Trip</Text>
-              </Pressable>
-            </View>
-          </Pressable>
-        )}
-
         <View style={styles.heroContent}>
           <Text style={styles.heroDestination}>
             {trip.emoji} {trip.destination}
@@ -2614,6 +2580,40 @@ export default function TripDetailScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      {/* Trip options dropdown menu — full-screen overlay */}
+      {showTripMenu && (
+        <Pressable style={styles.tripMenuOverlay} onPress={() => setShowTripMenu(false)}>
+          <View style={[styles.tripMenuDropdown, { top: insets.top + Spacing.sm + 44 }]}>
+            <View style={styles.tripMenuGrid}>
+              {[
+                { label: 'Share', icon: 'share-outline' as const, onPress: () => { setShowTripMenu(false); Share.share({ message: `Check out my trip to ${trip.destination}! ✈️` }); } },
+                { label: 'Rename', icon: 'create-outline' as const, onPress: () => { setShowTripMenu(false); Alert.alert('Edit Trip Name', 'Coming Soon'); } },
+                { label: 'Duplicate', icon: 'copy-outline' as const, onPress: () => { setShowTripMenu(false); Alert.alert('Duplicate Trip', 'Coming Soon'); } },
+                { label: 'Export', icon: 'download-outline' as const, onPress: () => { setShowTripMenu(false); Alert.alert('Export Itinerary', 'Coming Soon'); } },
+              ].map((item) => (
+                <Pressable
+                  key={item.label}
+                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); item.onPress(); }}
+                  style={styles.tripMenuGridItem}
+                >
+                  <View style={styles.tripMenuGridIcon}>
+                    <Ionicons name={item.icon} size={18} color={Colors.text} />
+                  </View>
+                  <Text style={styles.tripMenuGridLabel}>{item.label}</Text>
+                </Pressable>
+              ))}
+            </View>
+            <Pressable
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowTripMenu(false); Alert.alert('Delete Trip', 'Coming Soon'); }}
+              style={styles.tripMenuDeleteRow}
+            >
+              <Ionicons name="trash-outline" size={15} color={Colors.error} />
+              <Text style={styles.tripMenuDeleteLabel}>Delete Trip</Text>
+            </Pressable>
+          </View>
+        </Pressable>
+      )}
     </View>
   );
 }
