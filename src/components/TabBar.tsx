@@ -1,3 +1,4 @@
+import { useCallback } from 'react';
 import { View, Text, Pressable, StyleSheet, Platform } from 'react-native';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -23,7 +24,7 @@ export default function TabBar({ state, descriptors, navigation }: BottomTabBarP
   const leftTabs = ['home', 'explore'];
   const rightTabs = ['trips', 'profile'];
 
-  const renderTab = (routeName: string) => {
+  const renderTab = useCallback((routeName: string) => {
     const routeIndex = state.routes.findIndex(r => r.name === routeName);
     if (routeIndex === -1) return null;
     const route = state.routes[routeIndex];
@@ -62,7 +63,7 @@ export default function TabBar({ state, descriptors, navigation }: BottomTabBarP
         {isFocused && <View style={styles.activeIndicator} />}
       </Pressable>
     );
-  };
+  }, [state, descriptors, navigation]);
 
   return (
     <View style={styles.wrapper}>

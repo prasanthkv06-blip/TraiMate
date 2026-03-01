@@ -2,10 +2,12 @@ import { View } from 'react-native';
 import { Tabs } from 'expo-router';
 import TabBar from '../../src/components/TabBar';
 import AIGuide from '../../src/components/AIGuide';
+import OfflineBanner from '../../src/components/OfflineBanner';
 
 export default function TabLayout() {
   return (
     <View style={{ flex: 1 }}>
+      <OfflineBanner />
       <Tabs
         initialRouteName="home"
         tabBar={(props) => <TabBar {...props} />}

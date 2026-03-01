@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, FlatList, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
@@ -85,7 +85,7 @@ export default function TripsScreen() {
     return true;
   });
 
-  const handleTripPress = (trip: Trip) => {
+  const handleTripPress = useCallback((trip: Trip) => {
     const isSample = SAMPLE_TRIPS.some(s => s.id === trip.id);
     if (isSample) {
       router.push({ pathname: '/trip/[id]', params: { id: trip.id } });
@@ -102,7 +102,30 @@ export default function TripsScreen() {
         },
       });
     }
-  };
+  }, [router]);
+
+  const renderItem = useCallback(({ item }: { item: RealTrip | Trip }) => (
+    <View style={styles.cardWrapper}>
+      <TripCard
+        trip={item}
+        onPress={() => handleTripPress(item)}
+      />
+    </View>
+  ), [handleTripPress]);
+
+  const keyExtractor = useCallback((item: Trip) => item.id, []);
+
+  const ListEmptyComponent = useCallback(() => (
+    <View style={styles.emptyState}>
+      <Ionicons name="airplane-outline" size={48} color={Colors.textMuted} />
+      <Text style={styles.emptyTitle}>No trips here yet</Text>
+      <Text style={styles.emptySubtitle}>
+        {activeFilter === 'upcoming'
+          ? 'Plan your next adventure!'
+          : 'Your travel memories will show up here'}
+      </Text>
+    </View>
+  ), [activeFilter]);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + Spacing.md }]}>
@@ -140,32 +163,15 @@ export default function TripsScreen() {
       </ScrollView>
 
       {/* Trip list */}
-      <ScrollView
+      <FlatList
+        data={filteredTrips}
+        renderItem={renderItem}
+        keyExtractor={keyExtractor}
+        ListEmptyComponent={ListEmptyComponent}
+        ListFooterComponent={<View style={{ height: 120 }} />}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.listContent}
-      >
-        {filteredTrips.length > 0 ? (
-          filteredTrips.map((trip) => (
-            <View key={trip.id} style={styles.cardWrapper}>
-              <TripCard
-                trip={trip}
-                onPress={() => handleTripPress(trip)}
-              />
-            </View>
-          ))
-        ) : (
-          <View style={styles.emptyState}>
-            <Ionicons name="airplane-outline" size={48} color={Colors.textMuted} />
-            <Text style={styles.emptyTitle}>No trips here yet</Text>
-            <Text style={styles.emptySubtitle}>
-              {activeFilter === 'upcoming'
-                ? 'Plan your next adventure!'
-                : 'Your travel memories will show up here'}
-            </Text>
-          </View>
-        )}
-        <View style={{ height: 120 }} />
-      </ScrollView>
+      />
     </View>
   );
 }

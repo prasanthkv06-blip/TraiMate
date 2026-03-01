@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -38,7 +38,7 @@ const PHASE_CONFIG = {
   review: { label: 'Memories', color: '#8B6DB5', emoji: '📸' },
 };
 
-export default function TripCard({ trip, onPress }: TripCardProps) {
+function TripCard({ trip, onPress }: TripCardProps) {
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
   const fadeAnim = useRef(new Animated.Value(1)).current;
 
@@ -129,6 +129,10 @@ export default function TripCard({ trip, onPress }: TripCardProps) {
     </Pressable>
   );
 }
+
+export default React.memo(TripCard, (prev, next) =>
+  prev.trip.id === next.trip.id && prev.onPress === next.onPress
+);
 
 const styles = StyleSheet.create({
   container: {

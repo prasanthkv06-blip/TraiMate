@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -162,7 +162,7 @@ interface AIGuideProps {
   liveContext?: LiveContext;
 }
 
-export default function AIGuide({ destination, liveContext }: AIGuideProps) {
+function AIGuide({ destination, liveContext }: AIGuideProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -369,6 +369,8 @@ export default function AIGuide({ destination, liveContext }: AIGuideProps) {
     </>
   );
 }
+
+export default React.memo(AIGuide);
 
 const styles = StyleSheet.create({
   fabContainer: {

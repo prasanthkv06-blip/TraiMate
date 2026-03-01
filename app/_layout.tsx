@@ -3,6 +3,8 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import * as Font from 'expo-font';
+import { syncAllBookingReminders } from '../src/services/bookingReminders';
+import { ConnectivityProvider } from '../src/contexts/ConnectivityContext';
 import {
   PlayfairDisplay_500Medium,
   PlayfairDisplay_700Bold,
@@ -44,6 +46,7 @@ export default function RootLayout() {
   useEffect(() => {
     if (appReady) {
       SplashScreen.hideAsync();
+      syncAllBookingReminders();
     }
   }, [appReady]);
 
@@ -52,7 +55,7 @@ export default function RootLayout() {
   }
 
   return (
-    <>
+    <ConnectivityProvider>
       <StatusBar style="dark" />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="index" />
@@ -83,6 +86,6 @@ export default function RootLayout() {
           }}
         />
       </Stack>
-    </>
+    </ConnectivityProvider>
   );
 }

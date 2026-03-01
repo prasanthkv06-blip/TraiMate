@@ -16,9 +16,11 @@ import {
   type TripBlob,
   type TripExpenseLocal,
   type PackingItemLocal,
+  type BookingLocal,
 } from './storageCache';
-export type { TripIndexEntry, TripExpenseLocal, PackingItemLocal } from './storageCache';
+export type { TripIndexEntry, TripExpenseLocal, PackingItemLocal, BookingLocal, BookingType } from './storageCache';
 import type { ItineraryDay } from '../utils/itineraryGenerator';
+import { withRetry } from '../utils/retry';
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 
@@ -114,15 +116,16 @@ export async function createTrip(input: CreateTripInput): Promise<TripIndexEntry
 // ── Fetch trips ─────────────────────────────────────────────────────────
 
 export async function fetchTrips(): Promise<TripIndexEntry[]> {
-  // Try Supabase first for latest data
-  const remote = await supabaseSafe(async () => {
+  // Try Supabase first for latest data, with retry + backoff
+  const remote = await supabaseSafe(() => withRetry(async () => {
     const deviceId = await getDeviceId();
     const { data, error } = await supabase
       .from('trips')
       .select('*')
       .eq('created_by' as any, deviceId)
       .order('created_at', { ascending: false });
-    if (error || !data) return null;
+    if (error) throw error;
+    if (!data) return null;
     return (data as any[]).map((row): TripIndexEntry => ({
       id: row.id,
       name: row.name,
@@ -136,7 +139,7 @@ export async function fetchTrips(): Promise<TripIndexEntry[]> {
       createdAt: row.created_at,
       memberCount: 1,
     }));
-  });
+  }));
 
   if (remote) {
     // Merge: keep local-only trips that haven't synced
@@ -238,6 +241,40 @@ export async function removeExpense(tripId: string, expenseId: string): Promise<
 export async function loadExpenses(tripId: string): Promise<TripExpenseLocal[]> {
   const blob = await loadTripLocally(tripId);
   return blob?.expenses || [];
+}
+
+// ── Bookings ────────────────────────────────────────────────────────
+
+export async function addBooking(tripId: string, booking: BookingLocal): Promise<void> {
+  const blob = await loadTripLocally(tripId);
+  if (blob) {
+    blob.bookings = blob.bookings || [];
+    blob.bookings.unshift(booking);
+    await saveTripLocally(tripId, blob);
+  }
+}
+
+export async function updateBooking(tripId: string, bookingId: string, updates: Partial<BookingLocal>): Promise<void> {
+  const blob = await loadTripLocally(tripId);
+  if (blob && blob.bookings) {
+    blob.bookings = blob.bookings.map(b =>
+      b.id === bookingId ? { ...b, ...updates } : b
+    );
+    await saveTripLocally(tripId, blob);
+  }
+}
+
+export async function removeBooking(tripId: string, bookingId: string): Promise<void> {
+  const blob = await loadTripLocally(tripId);
+  if (blob && blob.bookings) {
+    blob.bookings = blob.bookings.filter(b => b.id !== bookingId);
+    await saveTripLocally(tripId, blob);
+  }
+}
+
+export async function loadBookings(tripId: string): Promise<BookingLocal[]> {
+  const blob = await loadTripLocally(tripId);
+  return blob?.bookings || [];
 }
 
 // ── Journal ─────────────────────────────────────────────────────────────

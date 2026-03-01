@@ -17,6 +17,7 @@ import {
   UIManager,
   Linking,
   ActionSheetIOS,
+  InteractionManager,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -331,10 +332,13 @@ export default function TripDetailScreen() {
 
   // Load user role and trip visibility
   useEffect(() => {
-    if (params.id) {
-      getUserRole(params.id).then(setUserRole);
-      getTripVisibility(params.id).then(setTripVisibilityState);
-    }
+    const handle = InteractionManager.runAfterInteractions(() => {
+      if (params.id) {
+        getUserRole(params.id).then(setUserRole);
+        getTripVisibility(params.id).then(setTripVisibilityState);
+      }
+    });
+    return () => handle.cancel();
   }, [params.id]);
 
   useEffect(() => {
@@ -382,62 +386,68 @@ export default function TripDetailScreen() {
   // ── Load live data (weather, forecast, AQI, exchange rate, trending) when live tab is active ──
   useEffect(() => {
     if (activePhase !== 'live') return;
-    const destName = cleanDestination(params.destination || trip.destination);
     let cancelled = false;
 
-    // Load trending
-    setTrendingLoading(true);
-    getTrendingSuggestionsAsync(destName).then(results => {
-      if (!cancelled && results.length > 0) setAsyncTrending(results);
-    }).finally(() => {
-      if (!cancelled) setTrendingLoading(false);
+    const handle = InteractionManager.runAfterInteractions(() => {
+      const destName = cleanDestination(params.destination || trip.destination);
+
+      // Load trending
+      setTrendingLoading(true);
+      getTrendingSuggestionsAsync(destName).then(results => {
+        if (!cancelled && results.length > 0) setAsyncTrending(results);
+      }).finally(() => {
+        if (!cancelled) setTrendingLoading(false);
+      });
+
+      // Load weather + forecast + AQI + exchange rate
+      getLiveDataAsync(destName).then(data => {
+        if (!cancelled) setLiveData(data);
+      });
     });
 
-    // Load weather + forecast + AQI + exchange rate
-    getLiveDataAsync(destName).then(data => {
-      if (!cancelled) setLiveData(data);
-    });
-
-    return () => { cancelled = true; };
+    return () => { cancelled = true; handle.cancel(); };
   }, [activePhase, params.destination, trip.destination]);
 
   // ── Generate smart daily briefing when live data is ready ──
   useEffect(() => {
     if (!liveData?.realWeather || dailyBriefing) return;
-    const destName = cleanDestination(params.destination || trip.destination);
-    const currentDay = getCurrentDayNumber(params.startDate);
-    const totalDays = itinerary.length || 5;
-    const todayPlan = getTodayItinerary(itinerary, currentDay);
     let cancelled = false;
 
-    const context: LiveContext = {
-      weather: liveData.realWeather ? {
-        temp: liveData.realWeather.temp,
-        condition: liveData.realWeather.condition,
-        alert: liveData.realWeather.alert,
-        humidity: liveData.realWeather.humidity,
-        windSpeed: liveData.realWeather.windSpeed,
-      } : undefined,
-      sunrise: liveData.realWeather?.sunrise,
-      sunset: liveData.realWeather?.sunset,
-      aqi: liveData.aqi ? { label: liveData.aqi.label, advice: liveData.aqi.advice } : undefined,
-      forecast: liveData.forecast.slice(0, 3).map(f => ({
-        date: f.date,
-        high: f.high,
-        low: f.low,
-        condition: f.condition,
-        pop: f.pop,
-      })),
-      currentDay,
-      totalDays,
-      todayActivities: todayPlan?.items.map(i => i.title) || [],
-    };
+    const handle = InteractionManager.runAfterInteractions(() => {
+      const destName = cleanDestination(params.destination || trip.destination);
+      const currentDay = getCurrentDayNumber(params.startDate);
+      const totalDays = itinerary.length || 5;
+      const todayPlan = getTodayItinerary(itinerary, currentDay);
 
-    generateDailyBriefing(destName, context).then(briefing => {
-      if (!cancelled) setDailyBriefing(briefing);
-    }).catch(() => {});
+      const context: LiveContext = {
+        weather: liveData.realWeather ? {
+          temp: liveData.realWeather.temp,
+          condition: liveData.realWeather.condition,
+          alert: liveData.realWeather.alert,
+          humidity: liveData.realWeather.humidity,
+          windSpeed: liveData.realWeather.windSpeed,
+        } : undefined,
+        sunrise: liveData.realWeather?.sunrise,
+        sunset: liveData.realWeather?.sunset,
+        aqi: liveData.aqi ? { label: liveData.aqi.label, advice: liveData.aqi.advice } : undefined,
+        forecast: liveData.forecast.slice(0, 3).map(f => ({
+          date: f.date,
+          high: f.high,
+          low: f.low,
+          condition: f.condition,
+          pop: f.pop,
+        })),
+        currentDay,
+        totalDays,
+        todayActivities: todayPlan?.items.map(i => i.title) || [],
+      };
 
-    return () => { cancelled = true; };
+      generateDailyBriefing(destName, context).then(briefing => {
+        if (!cancelled) setDailyBriefing(briefing);
+      }).catch(() => {});
+    });
+
+    return () => { cancelled = true; handle.cancel(); };
   }, [liveData, params.destination, trip.destination]);
 
   // ── Schedule local push notifications ────────────────────────────────
@@ -445,6 +455,7 @@ export default function TripDetailScreen() {
     if (Platform.OS === 'web') return;
     if (!params.startDate || !params.endDate || params.startDate === 'TBD' || params.endDate === 'TBD') return;
 
+    const handle = InteractionManager.runAfterInteractions(() => {
     const scheduleTripNotifications = async () => {
       try {
         const { status } = await Notifications.requestPermissionsAsync();
@@ -497,6 +508,8 @@ export default function TripDetailScreen() {
     };
 
     scheduleTripNotifications();
+    });
+    return () => handle.cancel();
   }, [params.startDate, params.endDate]);
 
   // ── Phase switching ────────────────────────────────────────────────────
@@ -1401,10 +1414,9 @@ export default function TripDetailScreen() {
           <View style={styles.essentialsBar}>
             <View style={styles.essentialsGrid}>
               {[
-                { icon: 'wallet-outline' as const, label: 'Spend', route: '/trip/expenses' },
+                { icon: 'wallet-outline' as const, label: 'Stash', route: '/trip/stash' },
                 { icon: 'chatbubbles-outline' as const, label: 'Chat', route: '/trip/chat' },
                 { icon: 'stats-chart-outline' as const, label: 'Polls', route: '/trip/polls' },
-                { icon: 'time-outline' as const, label: 'Activity', route: '/trip/activity' },
               ].map((f, i) => (
                 <Pressable
                   key={`ess-${i}`}
@@ -1415,6 +1427,13 @@ export default function TripDetailScreen() {
                   <Text style={styles.essentialCardLabel}>{f.label}</Text>
                 </Pressable>
               ))}
+              <Pressable
+                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowAIPicksSheet(true); }}
+                style={({ pressed }) => [styles.essentialCard, styles.essentialCardAI, pressed && { transform: [{ scale: 0.93 }] }]}
+              >
+                <Ionicons name="sparkles-outline" size={22} color={Colors.sage} />
+                <Text style={[styles.essentialCardLabel, { color: Colors.sage }]}>AI Picks</Text>
+              </Pressable>
             </View>
           </View>
           </View>
@@ -2068,7 +2087,7 @@ export default function TripDetailScreen() {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                     setDockExpanded(false);
                     Animated.spring(dockAnim, { toValue: 0, useNativeDriver: true, friction: 8 }).start();
-                    router.push({ pathname: '/trip/expenses' as any, params: { tripId: params.id, destination: params.destination || '', startDate: params.startDate || '', endDate: params.endDate || '' } });
+                    router.push({ pathname: '/trip/stash' as any, params: { tripId: params.id, destination: params.destination || '', startDate: params.startDate || '', endDate: params.endDate || '' } });
                   }}
                   style={({ pressed }) => [styles.dockCard, pressed && { transform: [{ scale: 0.95 }] }]}
                 >
@@ -2084,8 +2103,8 @@ export default function TripDetailScreen() {
                       </View>
                       <Ionicons name="arrow-forward" size={18} color="rgba(255,255,255,0.6)" />
                     </View>
-                    <Text style={styles.dockCardTitle}>Expense</Text>
-                    <Text style={styles.dockCardSub}>Track spending, scan receipts</Text>
+                    <Text style={styles.dockCardTitle}>Stash</Text>
+                    <Text style={styles.dockCardSub}>Spending, bookings & more</Text>
                     <View style={styles.dockCardFeatures}>
                       <View style={styles.dockCardFeaturePill}>
                         <Ionicons name="card" size={11} color="rgba(255,255,255,0.9)" />
@@ -2896,7 +2915,6 @@ export default function TripDetailScreen() {
               {[
                 { icon: 'briefcase-outline' as const, label: 'Packing', desc: 'Smart packing list', route: '/trip/packing', color: '#5E8A5A' },
                 { icon: 'cash-outline' as const, label: 'Budget', desc: 'Cost breakdown', route: '/trip/budget', color: '#B07A50' },
-                { icon: 'airplane-outline' as const, label: 'Bookings', desc: 'Flights & hotels', route: '/trip/bookings', color: '#C75450' },
                 { icon: 'calendar-outline' as const, label: 'Best Time', desc: 'When to visit', route: '/trip/best-time', color: '#4A8BA8' },
                 { icon: 'document-text-outline' as const, label: 'Visa Info', desc: 'Entry requirements', route: '/trip/visa', color: '#9B59B6' },
               ].map((f, i) => (
