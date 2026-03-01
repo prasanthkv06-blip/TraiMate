@@ -20,6 +20,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Fonts, FontSizes, Spacing, BorderRadius, Shadows } from '../../src/constants/theme';
+import { createTrip } from '../../src/services/tripService';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -511,7 +512,7 @@ export default function DetailsScreen() {
     );
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (!tripName.trim()) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
@@ -526,11 +527,19 @@ export default function DetailsScreen() {
     };
 
     if (tripType === 'solo') {
-      // Solo trip — dismiss modal, then push to trip screen
+      // Solo trip — persist, dismiss modal, then push to trip screen
+      const trip = await createTrip({
+        name: tripName.trim(),
+        destination,
+        startDate: startDate ? startDate.toISOString() : null,
+        endDate: endDate ? endDate.toISOString() : null,
+        currency,
+        tripType,
+      });
       router.dismissAll();
       router.push({
         pathname: '/trip/[id]',
-        params: { id: 'new-trip', ...tripParams },
+        params: { id: trip.id, ...tripParams },
       });
     } else {
       // Group trip — proceed to invite crew

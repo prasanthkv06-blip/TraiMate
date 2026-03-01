@@ -1,13 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, Pressable, Modal, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, Fonts, FontSizes, Spacing, BorderRadius, Shadows } from '../../src/constants/theme';
 import { SAMPLE_TRIPS } from '../../src/constants/sampleData';
+import { fetchTrips } from '../../src/services/tripService';
 
 const USER_NAME_KEY = '@traimate_user_name';
 const ONBOARDING_KEY = '@traimate_onboarded';
@@ -27,6 +29,14 @@ export default function ProfileScreen() {
   const [avatarEmoji, setAvatarEmoji] = useState<string | null>(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [selectedEmoji, setSelectedEmoji] = useState<string | null>(null);
+  const [realTripCount, setRealTripCount] = useState(0);
+
+  const loadStats = useCallback(async () => {
+    try {
+      const entries = await fetchTrips();
+      setRealTripCount(entries.length);
+    } catch {}
+  }, []);
 
   useEffect(() => {
     AsyncStorage.getItem(USER_NAME_KEY).then((name) => {
@@ -35,7 +45,14 @@ export default function ProfileScreen() {
     AsyncStorage.getItem(AVATAR_EMOJI_KEY).then((emoji) => {
       if (emoji) setAvatarEmoji(emoji);
     });
-  }, []);
+    loadStats();
+  }, [loadStats]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadStats();
+    }, [loadStats])
+  );
 
   const handleOpenPicker = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -126,7 +143,7 @@ export default function ProfileScreen() {
 
       <View style={styles.statsRow}>
         {[
-          { value: String(SAMPLE_TRIPS.length), label: 'Trips', icon: 'compass-outline' },
+          { value: String(realTripCount + SAMPLE_TRIPS.length), label: 'Trips', icon: 'compass-outline' },
           { value: String(new Set(SAMPLE_TRIPS.map(t => t.destination.split(',').pop()?.trim())).size), label: 'Countries', icon: 'globe-outline' },
           { value: String(SAMPLE_TRIPS.reduce((sum, t) => sum + (t.memberCount - 1), 0)), label: 'Friends', icon: 'people-outline' },
         ].map((stat) => (

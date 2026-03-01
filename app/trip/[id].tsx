@@ -178,14 +178,15 @@ export default function TripDetailScreen() {
 
   // ── Parse trip params ──────────────────────────────────────────────────
   const isNewTrip = params.id === 'new-trip' && !!params.destination;
+  const isUserCreatedTrip = !isNewTrip && !!params.destination && !SAMPLE_TRIPS.find(t => t.id === params.id);
   const tripStyles = params.styles ? params.styles.split(',').filter(Boolean) : [];
   const isSoloTrip = params.tripType === 'solo' || (!params.tripType && !isNewTrip);
 
   // For existing trips from sample data
   const sampleTrip = SAMPLE_TRIPS.find((t) => t.id === params.id);
 
-  // Build trip object from either params or sample data
-  const trip = isNewTrip
+  // Build trip object from either params, user-created trip, or sample data
+  const trip = (isNewTrip || isUserCreatedTrip)
     ? {
         name: params.tripName || 'My Trip',
         destination: cleanDestination(params.destination || ''),

@@ -134,6 +134,37 @@ export interface Database {
         Insert: Omit<Database['public']['Tables']['notifications']['Row'], 'id' | 'created_at'>;
         Update: Partial<Database['public']['Tables']['notifications']['Insert']>;
       };
+      journal_entries: {
+        Row: {
+          id: string;
+          trip_id: string;
+          day: number;
+          text: string;
+          mood: string | null;
+          photos: string[];
+          created_by: string | null;
+          created_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['journal_entries']['Row'], 'id' | 'created_at'>;
+        Update: Partial<Database['public']['Tables']['journal_entries']['Insert']>;
+      };
+      bookings: {
+        Row: {
+          id: string;
+          trip_id: string;
+          type: string;
+          title: string;
+          confirmation_code: string | null;
+          start_date: string | null;
+          end_date: string | null;
+          amount: number | null;
+          currency: string;
+          notes: string | null;
+          created_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['bookings']['Row'], 'id' | 'created_at'>;
+        Update: Partial<Database['public']['Tables']['bookings']['Insert']>;
+      };
     };
   };
 }
@@ -149,3 +180,5 @@ export type PollOption = Database['public']['Tables']['poll_options']['Row'];
 export type PollVote = Database['public']['Tables']['poll_votes']['Row'];
 export type PackingItem = Database['public']['Tables']['packing_items']['Row'];
 export type Notification = Database['public']['Tables']['notifications']['Row'];
+export type JournalEntry = Database['public']['Tables']['journal_entries']['Row'];
+export type Booking = Database['public']['Tables']['bookings']['Row'];

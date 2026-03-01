@@ -1,12 +1,15 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Fonts, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
 import TripCard from '../../src/components/TripCard';
+import type { Trip } from '../../src/components/TripCard';
 import { SAMPLE_TRIPS } from '../../src/constants/sampleData';
+import { fetchTrips, type TripIndexEntry } from '../../src/services/tripService';
 
 type Filter = 'all' | 'upcoming' | 'memories';
 
@@ -16,17 +19,80 @@ const FILTERS: { key: Filter; label: string; icon: keyof typeof Ionicons.glyphMa
   { key: 'memories', label: 'Memories', icon: 'heart-outline' },
 ];
 
+function toTripCardShape(entry: TripIndexEntry): Trip {
+  const formatDate = (iso: string | null) => {
+    if (!iso) return 'TBD';
+    try {
+      const d = new Date(iso);
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      return `${months[d.getMonth()]} ${d.getDate()}`;
+    } catch {
+      return 'TBD';
+    }
+  };
+
+  return {
+    id: entry.id,
+    name: entry.name,
+    destination: entry.destination,
+    startDate: formatDate(entry.startDate),
+    endDate: formatDate(entry.endDate),
+    photos: entry.coverImage
+      ? [entry.coverImage]
+      : ['https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=800&q=80'],
+    memberCount: entry.memberCount,
+    phase: entry.phase,
+    emoji: entry.emoji,
+  };
+}
+
 export default function TripsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [activeFilter, setActiveFilter] = useState<Filter>('all');
+  const [realTrips, setRealTrips] = useState<Trip[]>([]);
 
-  const filteredTrips = SAMPLE_TRIPS.filter((trip) => {
+  const loadRealTrips = useCallback(async () => {
+    try {
+      const entries = await fetchTrips();
+      setRealTrips(entries.map(toTripCardShape));
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    loadRealTrips();
+  }, [loadRealTrips]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadRealTrips();
+    }, [loadRealTrips])
+  );
+
+  const allTrips = [...realTrips, ...SAMPLE_TRIPS];
+
+  const filteredTrips = allTrips.filter((trip) => {
     if (activeFilter === 'all') return true;
     if (activeFilter === 'upcoming') return trip.phase === 'planning' || trip.phase === 'live';
     if (activeFilter === 'memories') return trip.phase === 'review';
     return true;
   });
+
+  const handleTripPress = (trip: Trip) => {
+    const isSample = SAMPLE_TRIPS.some(s => s.id === trip.id);
+    if (isSample) {
+      router.push({ pathname: '/trip/[id]', params: { id: trip.id } });
+    } else {
+      router.push({
+        pathname: '/trip/[id]',
+        params: {
+          id: trip.id,
+          destination: trip.destination,
+          tripName: trip.name,
+        },
+      });
+    }
+  };
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + Spacing.md }]}>
@@ -73,7 +139,7 @@ export default function TripsScreen() {
             <View key={trip.id} style={styles.cardWrapper}>
               <TripCard
                 trip={trip}
-                onPress={() => router.push({ pathname: '/trip/[id]', params: { id: trip.id } })}
+                onPress={() => handleTripPress(trip)}
               />
             </View>
           ))

@@ -20,6 +20,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Fonts, FontSizes, Spacing, BorderRadius, Shadows } from '../../src/constants/theme';
+import { createTrip } from '../../src/services/tripService';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -365,15 +366,26 @@ export default function InviteScreen() {
     setSearchQuery('');
   };
 
-  const handleCreateTrip = () => {
+  const handleCreateTrip = async () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+    // Persist the trip
+    const trip = await createTrip({
+      name: tripName || 'My Trip',
+      destination: destination || '',
+      startDate: startDate || null,
+      endDate: endDate || null,
+      currency,
+      tripType,
+    });
+
     // Dismiss the create-trip modal first, then push to trip screen
     // so the back button on trip screen returns to home
     router.dismissAll();
     router.push({
       pathname: '/trip/[id]',
       params: {
-        id: 'new-trip',
+        id: trip.id,
         destination,
         tripName,
         startDate,

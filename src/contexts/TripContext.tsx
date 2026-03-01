@@ -2,9 +2,12 @@
  * TripContext — Shared state for all trip screens.
  * Holds expenses, journal entries, itinerary, squad members, and trip metadata.
  * Persists across navigation within the /trip/* stack.
+ * Now with offline-first persistence via storageCache + tripService.
  */
-import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import type { ItineraryDay } from '../utils/itineraryGenerator';
+import * as tripService from '../services/tripService';
+import { loadTripLocally } from '../services/storageCache';
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -73,6 +76,10 @@ interface TripContextValue {
   journalPhotos: Record<number, string[]>;
   addJournalPhoto: (day: number, uri: string) => void;
   removeJournalPhoto: (day: number, index: number) => void;
+
+  // Loading state
+  isLoaded: boolean;
+  loadFromStorage: (tripId: string) => Promise<void>;
 }
 
 const TripContext = createContext<TripContextValue | null>(null);
@@ -81,11 +88,15 @@ const TripContext = createContext<TripContextValue | null>(null);
 
 export function TripProvider({ children }: { children: React.ReactNode }) {
   // Trip metadata
-  const [tripMeta, setTripMeta] = useState<TripMeta>({
+  const [tripMeta, setTripMetaState] = useState<TripMeta>({
     id: '',
     name: '',
     destination: '',
   });
+
+  // Loading state
+  const [isLoaded, setIsLoaded] = useState(false);
+  const loadedTripIdRef = useRef<string>('');
 
   // Squad
   const [squad, setSquad] = useState<TripSquadMember[]>([
@@ -100,28 +111,85 @@ export function TripProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // Itinerary
-  const [itinerary, setItinerary] = useState<ItineraryDay[]>([]);
+  const [itinerary, setItineraryState] = useState<ItineraryDay[]>([]);
 
   // Expenses
   const [expenses, setExpenses] = useState<TripExpense[]>([]);
 
+  // Journal entries (text per day)
+  const [journalEntries, setJournalEntries] = useState<Record<number, string>>({});
+
+  // Journal moods per day
+  const [journalMoods, setJournalMoods] = useState<Record<number, string>>({});
+
+  // Journal photos per day
+  const [journalPhotos, setJournalPhotos] = useState<Record<number, string[]>>({});
+
+  // ── Load from storage ─────────────────────────────────────────────────
+
+  const loadFromStorage = useCallback(async (tripId: string) => {
+    if (!tripId || loadedTripIdRef.current === tripId) return;
+    loadedTripIdRef.current = tripId;
+
+    const blob = await loadTripLocally(tripId);
+    if (blob) {
+      if (blob.itinerary.length > 0) setItineraryState(blob.itinerary);
+      if (blob.expenses.length > 0) setExpenses(blob.expenses);
+      if (Object.keys(blob.journalEntries).length > 0) setJournalEntries(blob.journalEntries);
+      if (Object.keys(blob.journalMoods).length > 0) setJournalMoods(blob.journalMoods);
+      if (Object.keys(blob.journalPhotos).length > 0) setJournalPhotos(blob.journalPhotos);
+    }
+    setIsLoaded(true);
+  }, []);
+
+  // ── Wrapped setters that persist in background ────────────────────────
+
+  const setTripMeta = useCallback((meta: TripMeta) => {
+    setTripMetaState(meta);
+    // Auto-load from storage when trip ID changes
+    if (meta.id && meta.id !== loadedTripIdRef.current) {
+      loadFromStorage(meta.id);
+    }
+  }, [loadFromStorage]);
+
+  const setItinerary: React.Dispatch<React.SetStateAction<ItineraryDay[]>> = useCallback(
+    (action: React.SetStateAction<ItineraryDay[]>) => {
+      setItineraryState(prev => {
+        const next = typeof action === 'function' ? action(prev) : action;
+        // Background persist
+        const tripId = loadedTripIdRef.current;
+        if (tripId && next.length > 0) {
+          tripService.saveItinerary(tripId, next);
+        }
+        return next;
+      });
+    },
+    [],
+  );
+
   const addExpense = useCallback((expense: TripExpense) => {
     setExpenses(prev => [expense, ...prev]);
+    const tripId = loadedTripIdRef.current;
+    if (tripId) {
+      tripService.addExpense(tripId, expense);
+    }
   }, []);
 
   const removeExpense = useCallback((id: string) => {
     setExpenses(prev => prev.filter(e => e.id !== id));
+    const tripId = loadedTripIdRef.current;
+    if (tripId) {
+      tripService.removeExpense(tripId, id);
+    }
   }, []);
-
-  // Journal entries (text per day)
-  const [journalEntries, setJournalEntries] = useState<Record<number, string>>({});
 
   const setJournalEntry = useCallback((day: number, text: string) => {
     setJournalEntries(prev => ({ ...prev, [day]: text }));
+    const tripId = loadedTripIdRef.current;
+    if (tripId) {
+      tripService.saveJournal(tripId, day, { text });
+    }
   }, []);
-
-  // Journal moods per day
-  const [journalMoods, setJournalMoods] = useState<Record<number, string>>({});
 
   const setJournalMood = useCallback((day: number, mood: string | null) => {
     setJournalMoods(prev => {
@@ -130,24 +198,33 @@ export function TripProvider({ children }: { children: React.ReactNode }) {
       delete next[day];
       return next;
     });
-  }, []);
-
-  // Journal photos per day
-  const [journalPhotos, setJournalPhotos] = useState<Record<number, string[]>>({});
+    const tripId = loadedTripIdRef.current;
+    if (tripId) {
+      tripService.saveJournal(tripId, day, { text: journalEntries[day] || '', mood: mood || undefined });
+    }
+  }, [journalEntries]);
 
   const addJournalPhoto = useCallback((day: number, uri: string) => {
-    setJournalPhotos(prev => ({
-      ...prev,
-      [day]: [...(prev[day] || []), uri],
-    }));
-  }, []);
+    setJournalPhotos(prev => {
+      const updated = { ...prev, [day]: [...(prev[day] || []), uri] };
+      const tripId = loadedTripIdRef.current;
+      if (tripId) {
+        tripService.saveJournal(tripId, day, { text: journalEntries[day] || '', photos: updated[day] });
+      }
+      return updated;
+    });
+  }, [journalEntries]);
 
   const removeJournalPhoto = useCallback((day: number, index: number) => {
-    setJournalPhotos(prev => ({
-      ...prev,
-      [day]: (prev[day] || []).filter((_, i) => i !== index),
-    }));
-  }, []);
+    setJournalPhotos(prev => {
+      const updated = { ...prev, [day]: (prev[day] || []).filter((_, i) => i !== index) };
+      const tripId = loadedTripIdRef.current;
+      if (tripId) {
+        tripService.saveJournal(tripId, day, { text: journalEntries[day] || '', photos: updated[day] });
+      }
+      return updated;
+    });
+  }, [journalEntries]);
 
   const value = useMemo<TripContextValue>(() => ({
     tripMeta,
@@ -167,10 +244,12 @@ export function TripProvider({ children }: { children: React.ReactNode }) {
     journalPhotos,
     addJournalPhoto,
     removeJournalPhoto,
+    isLoaded,
+    loadFromStorage,
   }), [
     tripMeta, squad, itinerary, expenses, journalEntries, journalMoods, journalPhotos,
-    setTripMeta, setSquad, addSquadMember, setItinerary, addExpense, removeExpense,
-    setJournalEntry, setJournalMood, addJournalPhoto, removeJournalPhoto,
+    isLoaded, setTripMeta, setSquad, addSquadMember, setItinerary, addExpense, removeExpense,
+    setJournalEntry, setJournalMood, addJournalPhoto, removeJournalPhoto, loadFromStorage,
   ]);
 
   return (

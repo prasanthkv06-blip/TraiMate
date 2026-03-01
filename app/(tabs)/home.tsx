@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,13 +11,16 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { Colors, Fonts, FontSizes, Spacing, BorderRadius, Shadows } from '../../src/constants/theme';
 import TripCard from '../../src/components/TripCard';
+import type { Trip } from '../../src/components/TripCard';
 import { SAMPLE_TRIPS } from '../../src/constants/sampleData';
+import { fetchTrips, type TripIndexEntry } from '../../src/services/tripService';
 
 const USER_NAME_KEY = '@traimate_user_name';
 
@@ -28,24 +31,51 @@ function getGreeting(): string {
   return 'Good evening';
 }
 
-// Derive stats from trip data
-function getTripStats() {
-  const upcoming = SAMPLE_TRIPS.filter((t) => t.phase === 'planning' || t.phase === 'live');
-  const past = SAMPLE_TRIPS.filter((t) => t.phase === 'review');
+// Convert a persisted trip to the TripCard shape
+function toTripCardShape(entry: TripIndexEntry): Trip {
+  const formatDate = (iso: string | null) => {
+    if (!iso) return 'TBD';
+    try {
+      const d = new Date(iso);
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      return `${months[d.getMonth()]} ${d.getDate()}`;
+    } catch {
+      return 'TBD';
+    }
+  };
 
-  // Extract unique countries from destination strings
+  return {
+    id: entry.id,
+    name: entry.name,
+    destination: entry.destination,
+    startDate: formatDate(entry.startDate),
+    endDate: formatDate(entry.endDate),
+    photos: entry.coverImage
+      ? [entry.coverImage]
+      : ['https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=800&q=80'],
+    memberCount: entry.memberCount,
+    phase: entry.phase,
+    emoji: entry.emoji,
+  };
+}
+
+// Derive stats from all trips (real + sample)
+function getTripStats(allTrips: Trip[]) {
+  const upcoming = allTrips.filter((t) => t.phase === 'planning' || t.phase === 'live');
+  const past = allTrips.filter((t) => t.phase === 'review');
+
   const countries = new Set(
-    SAMPLE_TRIPS.map((t) => {
+    allTrips.map((t) => {
       const parts = t.destination.split(', ');
       return parts[parts.length - 1];
     })
   );
 
-  // Rough day calculation from date strings
-  const totalDays = SAMPLE_TRIPS.reduce((sum, t) => {
+  const totalDays = allTrips.reduce((sum, t) => {
     const startDay = parseInt(t.startDate.split(' ')[1], 10);
     const endDay = parseInt(t.endDate.split(' ')[1], 10);
-    return sum + Math.max(endDay - startDay, 1);
+    const days = endDay - startDay;
+    return sum + (isNaN(days) ? 1 : Math.max(days, 1));
   }, 0);
 
   return {
@@ -61,7 +91,11 @@ export default function HomeScreen() {
   const router = useRouter();
   const [userName, setUserName] = useState('');
   const [refreshing, setRefreshing] = useState(false);
-  const stats = getTripStats();
+  const [realTrips, setRealTrips] = useState<Trip[]>([]);
+
+  // Combine real + sample for stats
+  const allTrips = [...realTrips, ...SAMPLE_TRIPS];
+  const stats = getTripStats(allTrips);
 
   // Staggered entrance animations
   const headerOpacity = useRef(new Animated.Value(0)).current;
@@ -80,10 +114,21 @@ export default function HomeScreen() {
   // Sparkle pulse animation
   const sparklePulse = useRef(new Animated.Value(1)).current;
 
+  const loadRealTrips = useCallback(async () => {
+    try {
+      const entries = await fetchTrips();
+      setRealTrips(entries.map(toTripCardShape));
+    } catch {
+      // Silently fail — sample trips are always shown
+    }
+  }, []);
+
   useEffect(() => {
     AsyncStorage.getItem(USER_NAME_KEY).then((name) => {
       if (name) setUserName(name);
     });
+
+    loadRealTrips();
 
     Animated.stagger(120, [
       Animated.parallel([
@@ -123,25 +168,52 @@ export default function HomeScreen() {
     return () => pulse.stop();
   }, []);
 
+  // Reload real trips when screen comes into focus (e.g. after creating a trip)
+  useFocusEffect(
+    useCallback(() => {
+      loadRealTrips();
+    }, [loadRealTrips])
+  );
+
   const onRefresh = async () => {
     setRefreshing(true);
-    await new Promise((r) => setTimeout(r, 1000));
+    await loadRealTrips();
     setRefreshing(false);
   };
 
-  const upcomingTrips = SAMPLE_TRIPS.filter((t) => t.phase === 'planning' || t.phase === 'live');
-  const pastTrips = SAMPLE_TRIPS.filter((t) => t.phase === 'review');
+  // Real trips first, then sample trips
+  const realUpcoming = realTrips.filter((t) => t.phase === 'planning' || t.phase === 'live');
+  const realPast = realTrips.filter((t) => t.phase === 'review');
+  const sampleUpcoming = SAMPLE_TRIPS.filter((t) => t.phase === 'planning' || t.phase === 'live');
+  const samplePast = SAMPLE_TRIPS.filter((t) => t.phase === 'review');
 
   const insightChips = [
     { icon: 'calendar-outline' as const, label: `${stats.upcomingCount} upcoming trips`, color: Colors.sage },
     { icon: 'globe-outline' as const, label: `${stats.countriesCount} countries explored`, color: Colors.accent },
     { icon: 'airplane-outline' as const, label: `${stats.totalDays} days of travel`, color: Colors.sageDark },
-    { icon: 'people-outline' as const, label: `${SAMPLE_TRIPS.reduce((s, t) => s + t.memberCount, 0)} travel companions`, color: Colors.accentDark },
+    { icon: 'people-outline' as const, label: `${allTrips.reduce((s, t) => s + t.memberCount, 0)} travel companions`, color: Colors.accentDark },
   ];
 
   const handlePlanTrip = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     router.push('/create-trip');
+  };
+
+  const handleTripPress = (trip: Trip) => {
+    // For real trips, pass params so trip detail can load from storage
+    const isSample = SAMPLE_TRIPS.some(s => s.id === trip.id);
+    if (isSample) {
+      router.push({ pathname: '/trip/[id]', params: { id: trip.id } });
+    } else {
+      router.push({
+        pathname: '/trip/[id]',
+        params: {
+          id: trip.id,
+          destination: trip.destination,
+          tripName: trip.name,
+        },
+      });
+    }
   };
 
   return (
@@ -288,7 +360,37 @@ export default function HomeScreen() {
           </ScrollView>
         </Animated.View>
 
-        {/* Upcoming trips */}
+        {/* Your trips (real user-created trips) */}
+        {realUpcoming.length > 0 && (
+          <>
+            <Animated.View
+              style={{
+                opacity: sectionOpacity,
+                transform: [{ translateY: sectionY }],
+              }}
+            >
+              <View style={styles.sectionHeader}>
+                <View style={styles.sectionTitleRow}>
+                  <Ionicons name="briefcase" size={20} color={Colors.text} style={styles.sectionIcon} />
+                  <Text style={styles.sectionTitle}>Your Trips</Text>
+                </View>
+              </View>
+            </Animated.View>
+            <Animated.View
+              style={{
+                opacity: cardsOpacity,
+                transform: [{ translateY: cardsY }],
+                alignItems: 'center',
+              }}
+            >
+              {realUpcoming.map((trip) => (
+                <TripCard key={trip.id} trip={trip} onPress={() => handleTripPress(trip)} />
+              ))}
+            </Animated.View>
+          </>
+        )}
+
+        {/* Sample/inspiration trips */}
         <Animated.View
           style={{
             opacity: sectionOpacity,
@@ -298,7 +400,7 @@ export default function HomeScreen() {
           <View style={styles.sectionHeader}>
             <View style={styles.sectionTitleRow}>
               <Ionicons name="briefcase" size={20} color={Colors.text} style={styles.sectionIcon} />
-              <Text style={styles.sectionTitle}>Your Trips</Text>
+              <Text style={styles.sectionTitle}>{realUpcoming.length > 0 ? 'Sample Trips' : 'Your Trips'}</Text>
             </View>
             <Pressable style={styles.seeAllButton}>
               <Text style={styles.seeAll}>See all</Text>
@@ -314,13 +416,13 @@ export default function HomeScreen() {
             alignItems: 'center',
           }}
         >
-          {upcomingTrips.map((trip) => (
-            <TripCard key={trip.id} trip={trip} onPress={() => router.push({ pathname: '/trip/[id]', params: { id: trip.id } })} />
+          {sampleUpcoming.map((trip) => (
+            <TripCard key={trip.id} trip={trip} onPress={() => handleTripPress(trip)} />
           ))}
         </Animated.View>
 
-        {/* Past trips */}
-        {pastTrips.length > 0 && (
+        {/* Past trips (real + sample) */}
+        {(realPast.length > 0 || samplePast.length > 0) && (
           <>
             <Animated.View
               style={{
@@ -342,8 +444,11 @@ export default function HomeScreen() {
                 alignItems: 'center',
               }}
             >
-              {pastTrips.map((trip) => (
-                <TripCard key={trip.id} trip={trip} onPress={() => router.push({ pathname: '/trip/[id]', params: { id: trip.id } })} />
+              {realPast.map((trip) => (
+                <TripCard key={trip.id} trip={trip} onPress={() => handleTripPress(trip)} />
+              ))}
+              {samplePast.map((trip) => (
+                <TripCard key={trip.id} trip={trip} onPress={() => handleTripPress(trip)} />
               ))}
             </Animated.View>
           </>

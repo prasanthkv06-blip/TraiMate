@@ -180,6 +180,80 @@ alter publication supabase_realtime add table public.poll_votes;
 alter publication supabase_realtime add table public.itinerary_items;
 alter publication supabase_realtime add table public.trip_members;
 
+-- Journal Entries
+create table public.journal_entries (
+  id uuid default uuid_generate_v4() primary key,
+  trip_id uuid references public.trips(id) on delete cascade not null,
+  day integer not null,
+  text text not null default '',
+  mood text,
+  photos text[] default '{}',
+  created_by uuid,
+  created_at timestamptz default now() not null,
+  unique(trip_id, day)
+);
+
+alter table public.journal_entries enable row level security;
+create policy "Trip members can view journal" on public.journal_entries for select
+  using (trip_id in (select trip_id from public.trip_members where user_id = auth.uid()));
+create policy "Trip members can manage journal" on public.journal_entries for all
+  using (trip_id in (select trip_id from public.trip_members where user_id = auth.uid()));
+
+-- Bookings
+create table public.bookings (
+  id uuid default uuid_generate_v4() primary key,
+  trip_id uuid references public.trips(id) on delete cascade not null,
+  type text not null default 'hotel',
+  title text not null,
+  confirmation_code text,
+  start_date date,
+  end_date date,
+  amount numeric(10,2),
+  currency text default 'USD',
+  notes text,
+  created_at timestamptz default now() not null
+);
+
+alter table public.bookings enable row level security;
+create policy "Trip members can view bookings" on public.bookings for select
+  using (trip_id in (select trip_id from public.trip_members where user_id = auth.uid()));
+create policy "Trip members can manage bookings" on public.bookings for all
+  using (trip_id in (select trip_id from public.trip_members where user_id = auth.uid()));
+
+alter publication supabase_realtime add table public.journal_entries;
+alter publication supabase_realtime add table public.bookings;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- GUEST MODE MIGRATION (run these when using device-UUID-based guest mode)
+-- This disables RLS and drops FK constraints so device UUIDs work
+-- instead of requiring auth.users references.
+-- ═══════════════════════════════════════════════════════════════════════════
+--
+-- -- Disable RLS on all tables:
+-- alter table public.trips disable row level security;
+-- alter table public.trip_members disable row level security;
+-- alter table public.itinerary_items disable row level security;
+-- alter table public.expenses disable row level security;
+-- alter table public.polls disable row level security;
+-- alter table public.poll_options disable row level security;
+-- alter table public.poll_votes disable row level security;
+-- alter table public.packing_items disable row level security;
+-- alter table public.notifications disable row level security;
+-- alter table public.journal_entries disable row level security;
+-- alter table public.bookings disable row level security;
+--
+-- -- Drop FK constraints on user-referencing columns:
+-- alter table public.trips alter column created_by type uuid using created_by::uuid;
+-- alter table public.trips drop constraint if exists trips_created_by_fkey;
+-- alter table public.expenses alter column paid_by type uuid using paid_by::uuid;
+-- alter table public.expenses drop constraint if exists expenses_paid_by_fkey;
+-- alter table public.packing_items drop constraint if exists packing_items_user_id_fkey;
+-- alter table public.poll_votes drop constraint if exists poll_votes_user_id_fkey;
+-- alter table public.polls drop constraint if exists polls_created_by_fkey;
+-- alter table public.trip_members drop constraint if exists trip_members_user_id_fkey;
+-- alter table public.notifications drop constraint if exists notifications_user_id_fkey;
+-- ═══════════════════════════════════════════════════════════════════════════
+
 -- Auto-create profile on signup (trigger)
 create or replace function public.handle_new_user()
 returns trigger as $$
