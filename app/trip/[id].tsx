@@ -2371,12 +2371,15 @@ export default function TripDetailScreen() {
         <AIGuide
           destination={trip.destination}
           liveContext={liveData?.realWeather ? {
-            weather: { temp: liveData.realWeather.temp, condition: liveData.realWeather.condition, alert: liveData.realWeather.alert, humidity: liveData.realWeather.humidity, windSpeed: liveData.realWeather.windSpeed },
+            weather: { temp: liveData.realWeather.temp, condition: liveData.realWeather.condition, alert: liveData.realWeather.alert, humidity: liveData.realWeather.humidity, windSpeed: liveData.realWeather.windSpeed, visibility: liveData.realWeather.visibility },
             sunrise: liveData.realWeather.sunrise,
             sunset: liveData.realWeather.sunset,
             aqi: liveData.aqi ? { label: liveData.aqi.label, advice: liveData.aqi.advice } : undefined,
             forecast: liveData.forecast.slice(0, 3).map(f => ({ date: f.date, high: f.high, low: f.low, condition: f.condition, pop: f.pop })),
             exchangeRate: liveData.exchangeRate ? { from: liveData.exchangeRate.from, to: liveData.exchangeRate.to, rate: liveData.exchangeRate.rate } : undefined,
+            localTime: liveData.localTimeInfo?.localTime,
+            localDayOfWeek: liveData.localTimeInfo?.dayOfWeek,
+            trafficCondition: liveData.trafficCondition || undefined,
           } : undefined}
         />
       )}

@@ -61,6 +61,16 @@ function getContextualSuggestions(context?: LiveContext): string[] {
     suggestions.push('😷 Air quality is bad — safe activities?');
   }
 
+  // Traffic-aware suggestions
+  if (context.trafficCondition?.startsWith('Heavy')) {
+    suggestions.push('🚇 Best way to avoid traffic now?');
+  } else {
+    suggestions.push('🚗 How is traffic right now?');
+  }
+
+  // Weather summary
+  suggestions.push('🌤️ What\'s the weather like today?');
+
   // Always include these
   suggestions.push('🍜 Best local food nearby');
   suggestions.push('💰 Budget tips for today');

@@ -244,6 +244,48 @@ const AQI_LABELS: Record<number, { label: string; color: string; advice: string 
   5: { label: 'Very Poor', color: '#9C27B0', advice: 'Avoid outdoor activities — wear a mask' },
 };
 
+// ── Local Time & Traffic Estimation ──────────────────────────────────────
+
+export interface LocalTimeInfo {
+  localTime: string;       // "14:30"
+  localHour: number;       // 14
+  dayOfWeek: string;       // "Monday"
+  isWeekend: boolean;
+}
+
+export function getLocalTime(timezoneOffset: number): LocalTimeInfo {
+  const now = new Date();
+  const utcMs = now.getTime() + now.getTimezoneOffset() * 60000;
+  const local = new Date(utcMs + timezoneOffset * 1000);
+
+  const hours = local.getHours();
+  const minutes = local.getMinutes();
+  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const dayOfWeek = days[local.getDay()];
+  const isWeekend = local.getDay() === 0 || local.getDay() === 6;
+
+  return {
+    localTime: `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`,
+    localHour: hours,
+    dayOfWeek,
+    isWeekend,
+  };
+}
+
+export function estimateTrafficCondition(localHour: number, isWeekend: boolean): string {
+  if (isWeekend) {
+    if (localHour >= 10 && localHour <= 14) return 'Moderate — weekend midday';
+    if (localHour >= 17 && localHour <= 20) return 'Moderate — weekend evening';
+    return 'Light — weekend off-peak';
+  }
+  // Weekday rush hours
+  if (localHour >= 7 && localHour <= 9) return 'Heavy — morning rush hour';
+  if (localHour >= 17 && localHour <= 19) return 'Heavy — evening rush hour';
+  if (localHour >= 12 && localHour <= 14) return 'Moderate — lunchtime';
+  if (localHour >= 22 || localHour <= 5) return 'Very light — nighttime';
+  return 'Light — off-peak';
+}
+
 export async function getAirQuality(destination: string): Promise<AirQuality | null> {
   if (!isConfigured()) return null;
 

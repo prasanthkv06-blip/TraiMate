@@ -173,7 +173,7 @@ Rules for the JSON:
 // ── Context-Aware Chat ───────────────────────────────────────────────────
 
 export interface LiveContext {
-  weather?: { temp: number; condition: string; alert?: string; humidity?: number; windSpeed?: number };
+  weather?: { temp: number; condition: string; alert?: string; humidity?: number; windSpeed?: number; visibility?: number };
   forecast?: Array<{ date: string; high: number; low: number; condition: string; pop: number }>;
   sunrise?: string;
   sunset?: string;
@@ -183,6 +183,9 @@ export interface LiveContext {
   todayActivities?: string[];
   localCurrency?: string;
   exchangeRate?: { from: string; to: string; rate: number };
+  localTime?: string;          // e.g. "14:30"
+  localDayOfWeek?: string;     // e.g. "Monday"
+  trafficCondition?: string;   // e.g. "Heavy — rush hour" or "Light — off-peak"
 }
 
 export async function chatWithGuideContextual(
@@ -218,6 +221,12 @@ export async function chatWithGuideContextual(
     if (context.exchangeRate) {
       parts.push(`Exchange rate: 1 ${context.exchangeRate.from} = ${context.exchangeRate.rate} ${context.exchangeRate.to}`);
     }
+    if (context.localTime && context.localDayOfWeek) {
+      parts.push(`Local time: ${context.localTime} (${context.localDayOfWeek})`);
+    }
+    if (context.trafficCondition) {
+      parts.push(`Traffic: ${context.trafficCondition}`);
+    }
     if (parts.length > 0) {
       contextBlock = `\n\nLIVE CONTEXT (use this to give relevant, timely advice):\n${parts.join('\n')}`;
     }
@@ -233,7 +242,10 @@ Rules:
 - Use relevant emoji sparingly (1-2 per response)
 - If asked about something unrelated to travel, gently redirect
 - Never make up specific prices or hours if unsure — say "check locally"
-- When you have live context, proactively mention relevant info (e.g. "it's raining, so..." or "sunset is at 6:30, perfect time for...")${contextBlock}`;
+- When you have live context, proactively mention relevant info (e.g. "it's raining, so..." or "sunset is at 6:30, perfect time for...")
+- When asked about WEATHER: use the live weather data to give accurate current conditions, what to wear, and whether to carry an umbrella. Reference the forecast for upcoming days.
+- When asked about TRAFFIC: use the local time, day of week, and traffic condition to advise on best transport, rush hour avoidance, and travel times between areas. Share knowledge about common congestion points, peak hours, and best alternatives (metro, walking, ride-share) for ${destination}.
+- When asked about GETTING AROUND / TRANSPORT: combine traffic awareness with local transport tips (metro lines, bus routes, ride-hailing apps, walking districts)${contextBlock}`;
 
   const conversationParts = history.map(msg => ({
     role: msg.role,

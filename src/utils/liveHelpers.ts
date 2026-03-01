@@ -2,7 +2,7 @@ import { AI_GUIDE_DB, AI_SUGGESTIONS_DB, type AISuggestion } from '../constants/
 import type { ItineraryDay, ItineraryItem } from './itineraryGenerator';
 import { searchPlaces } from '../lib/googlePlaces';
 import { generateAITips } from '../lib/gemini';
-import { getCurrentWeather, getForecast, getAirQuality, type RealWeather, type ForecastDay, type AirQuality } from '../lib/openWeather';
+import { getCurrentWeather, getForecast, getAirQuality, getLocalTime, estimateTrafficCondition, type RealWeather, type ForecastDay, type AirQuality, type LocalTimeInfo } from '../lib/openWeather';
 import { getExchangeRate, guessLocalCurrency, type ExchangeRateInfo } from '../lib/exchangeRate';
 
 // Check if trip is currently active
@@ -79,6 +79,8 @@ export interface LiveData {
   aqi: AirQuality | null;
   exchangeRate: ExchangeRateInfo | null;
   localCurrency: string;
+  localTimeInfo: LocalTimeInfo | null;
+  trafficCondition: string | null;
 }
 
 export async function getLiveDataAsync(
@@ -107,11 +109,17 @@ export async function getLiveDataAsync(
       }
     : getSimulatedWeather(destination);
 
-  return { weather, realWeather, forecast, aqi, exchangeRate, localCurrency };
+  // Compute local time & traffic from timezone
+  const localTimeInfo = realWeather ? getLocalTime(realWeather.timezone) : null;
+  const trafficCondition = localTimeInfo
+    ? estimateTrafficCondition(localTimeInfo.localHour, localTimeInfo.isWeekend)
+    : null;
+
+  return { weather, realWeather, forecast, aqi, exchangeRate, localCurrency, localTimeInfo, trafficCondition };
 }
 
 // Re-export types for consumers
-export type { RealWeather, ForecastDay, AirQuality, ExchangeRateInfo };
+export type { RealWeather, ForecastDay, AirQuality, ExchangeRateInfo, LocalTimeInfo };
 
 // Get pre-trip alerts from AI_GUIDE_DB
 export function getPreTripAlerts(destination: string): Array<{ text: string; type: string; emoji: string }> {
