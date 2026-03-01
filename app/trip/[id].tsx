@@ -65,6 +65,28 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
+// Cross-platform alert that works on web (where Alert.alert is a no-op)
+function crossAlert(
+  title: string,
+  message: string,
+  buttons?: { text: string; style?: 'default' | 'cancel' | 'destructive'; onPress?: () => void }[],
+) {
+  if (Platform.OS === 'web') {
+    if (buttons) {
+      const confirmBtn = buttons.find(b => b.style !== 'cancel');
+      if (confirmBtn) {
+        if (window.confirm(`${title}\n\n${message}`)) {
+          confirmBtn.onPress?.();
+        }
+      }
+    } else {
+      window.alert(`${title}\n\n${message}`);
+    }
+    return;
+  }
+  Alert.alert(title, message, buttons);
+}
+
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 // ── Squad member type ──────────────────────────────────────────────────────
@@ -590,68 +612,70 @@ export default function TripDetailScreen() {
   }, [params.startDate, params.endDate]);
 
   // ── Regenerate ─────────────────────────────────────────────────────────
+  const doRegenerate = useCallback(() => {
+    setItineraryStatus('generating');
+    const destName = cleanDestination(params.destination || trip.destination);
+    const duration = getTripDuration(params.startDate || '', params.endDate || '');
+    const styleList = tripStyles.length > 0 ? tripStyles.join(' + ') : 'explorer';
+
+    const steps = [
+      { msg: `🔍 Analyzing your trip to ${destName}...`, done: false },
+      { msg: `🎯 Matching your ${styleList} vibes...`, done: false },
+      { msg: `📝 Building a ${duration}-day itinerary...`, done: false },
+      { msg: `💡 Adding local insider tips...`, done: false },
+    ];
+
+    setGenSteps(steps);
+    setGenCurrentStep(0);
+
+    // Clear any previous generation timeouts
+    timeoutIdsRef.current.forEach(id => clearTimeout(id));
+    timeoutIdsRef.current = [];
+
+    const delays = [1000, 1500, 1500, 1000];
+    let accumulated = 0;
+
+    delays.forEach((delay, i) => {
+      accumulated += delay;
+      const tid = setTimeout(() => {
+        setGenSteps(prev => prev.map((s, idx) => idx <= i ? { ...s, done: true } : s));
+        if (i < delays.length - 1) setGenCurrentStep(i + 1);
+      }, accumulated);
+      timeoutIdsRef.current.push(tid);
+    });
+
+    const finalTid = setTimeout(async () => {
+      const genParams = {
+        destination: params.destination || trip.destination,
+        startDate: params.startDate || '',
+        endDate: params.endDate || '',
+        styles: tripStyles,
+        tripType: (params.tripType as 'solo' | 'group') || 'solo',
+      };
+
+      const generated = await generateItineraryAsync(genParams);
+
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      setItinerary(generated);
+      setItineraryStatus('ready');
+      setBuiltFromScratch(false);
+      setGenCurrentStep(-1);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }, accumulated + 800);
+    timeoutIdsRef.current.push(finalTid);
+  }, [params.destination, params.startDate, params.endDate, params.tripType, tripStyles, trip.destination]);
+
   const handleRegenerate = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    Alert.alert(
+
+    crossAlert(
       'Regenerate itinerary?',
       'This will replace your current plan. Any edits will be lost.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Regenerate',
-          onPress: () => {
-            // Call generation directly to avoid stale closure in Alert callback
-            setItineraryStatus('generating');
-            const destName = cleanDestination(params.destination || trip.destination);
-            const duration = getTripDuration(params.startDate || '', params.endDate || '');
-            const styleList = tripStyles.length > 0 ? tripStyles.join(' + ') : 'explorer';
-
-            const steps = [
-              { msg: `🔍 Analyzing your trip to ${destName}...`, done: false },
-              { msg: `🎯 Matching your ${styleList} vibes...`, done: false },
-              { msg: `📝 Building a ${duration}-day itinerary...`, done: false },
-              { msg: `💡 Adding local insider tips...`, done: false },
-            ];
-
-            setGenSteps(steps);
-            setGenCurrentStep(0);
-
-            // Clear any previous generation timeouts
-            timeoutIdsRef.current.forEach(id => clearTimeout(id));
-            timeoutIdsRef.current = [];
-
-            const delays = [1000, 1500, 1500, 1000];
-            let accumulated = 0;
-
-            delays.forEach((delay, i) => {
-              accumulated += delay;
-              const tid = setTimeout(() => {
-                setGenSteps(prev => prev.map((s, idx) => idx <= i ? { ...s, done: true } : s));
-                if (i < delays.length - 1) setGenCurrentStep(i + 1);
-              }, accumulated);
-              timeoutIdsRef.current.push(tid);
-            });
-
-            const finalTid = setTimeout(async () => {
-              const genParams = {
-                destination: params.destination || trip.destination,
-                startDate: params.startDate || '',
-                endDate: params.endDate || '',
-                styles: tripStyles,
-                tripType: (params.tripType as 'solo' | 'group') || 'solo',
-              };
-
-              const generated = await generateItineraryAsync(genParams);
-
-              LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-              setItinerary(generated);
-              setItineraryStatus('ready');
-              setBuiltFromScratch(false);
-              setGenCurrentStep(-1);
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            }, accumulated + 800);
-            timeoutIdsRef.current.push(finalTid);
-          },
+          onPress: doRegenerate,
         },
       ],
     );
@@ -801,7 +825,7 @@ export default function TripDetailScreen() {
   // ── Delete day ─────────────────────────────────────────────────────────
   const handleDeleteDay = useCallback((dayId: string) => {
     const day = itinerary.find(d => d.id === dayId);
-    Alert.alert(
+    crossAlert(
       `Delete Day ${day?.dayNumber}?`,
       'All activities in this day will be removed.',
       [
@@ -1112,7 +1136,7 @@ export default function TripDetailScreen() {
                   {builtFromScratch && (
                     <Pressable
                       onPress={() => {
-                        Alert.alert(
+                        crossAlert(
                           'Switch to AI plan?',
                           'This will replace your manual plan with an AI-generated itinerary.',
                           [
@@ -1638,7 +1662,7 @@ export default function TripDetailScreen() {
                         <Pressable
                           onPress={() => {
                             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                            Alert.alert(
+                            crossAlert(
                               'Remove Activity',
                               `Remove "${item.title}" from today's plan?`,
                               [
@@ -1812,7 +1836,7 @@ export default function TripDetailScreen() {
                             LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
                             setDismissedSuggestions(prev => new Set([...prev, suggestion.id]));
                             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                            Alert.alert(
+                            crossAlert(
                               'Added to Today\'s Plan!',
                               `"${newItem.title}" has been added to your itinerary`
                             );
@@ -2226,7 +2250,7 @@ export default function TripDetailScreen() {
                       setTrendingDetail(null);
                       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
                       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                      Alert.alert('Added to Today\'s Plan!', `"${trendingDetail.tl}" is now in your itinerary`);
+                      crossAlert('Added to Today\'s Plan!', `"${trendingDetail.tl}" is now in your itinerary`);
                     }}
                     style={({ pressed }) => [styles.trendingModalAddBtn, pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] }]}
                   >
@@ -2768,9 +2792,9 @@ export default function TripDetailScreen() {
             <View style={styles.tripMenuGrid}>
               {[
                 { label: 'Share', icon: 'share-outline' as const, onPress: () => { setShowTripMenu(false); Share.share({ message: `Check out my trip to ${trip.destination}! ✈️` }); } },
-                { label: 'Rename', icon: 'create-outline' as const, onPress: () => { setShowTripMenu(false); Alert.alert('Edit Trip Name', 'Coming Soon'); } },
-                { label: 'Duplicate', icon: 'copy-outline' as const, onPress: () => { setShowTripMenu(false); Alert.alert('Duplicate Trip', 'Coming Soon'); } },
-                { label: 'Export', icon: 'download-outline' as const, onPress: () => { setShowTripMenu(false); Alert.alert('Export Itinerary', 'Coming Soon'); } },
+                { label: 'Rename', icon: 'create-outline' as const, onPress: () => { setShowTripMenu(false); crossAlert('Edit Trip Name', 'Coming Soon'); } },
+                { label: 'Duplicate', icon: 'copy-outline' as const, onPress: () => { setShowTripMenu(false); crossAlert('Duplicate Trip', 'Coming Soon'); } },
+                { label: 'Export', icon: 'download-outline' as const, onPress: () => { setShowTripMenu(false); crossAlert('Export Itinerary', 'Coming Soon'); } },
               ].map((item) => (
                 <Pressable
                   key={item.label}
@@ -2785,7 +2809,7 @@ export default function TripDetailScreen() {
               ))}
             </View>
             <Pressable
-              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowTripMenu(false); Alert.alert('Delete Trip', 'Coming Soon'); }}
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowTripMenu(false); crossAlert('Delete Trip', 'Coming Soon'); }}
               style={styles.tripMenuDeleteRow}
             >
               <Ionicons name="trash-outline" size={15} color={Colors.error} />

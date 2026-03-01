@@ -31,8 +31,14 @@ function getGreeting(): string {
   return 'Good evening';
 }
 
+// Extended Trip type that keeps raw ISO dates for navigation
+interface RealTrip extends Trip {
+  rawStartDate: string | null;
+  rawEndDate: string | null;
+}
+
 // Convert a persisted trip to the TripCard shape
-function toTripCardShape(entry: TripIndexEntry): Trip {
+function toTripCardShape(entry: TripIndexEntry): RealTrip {
   const formatDate = (iso: string | null) => {
     if (!iso) return 'TBD';
     try {
@@ -50,6 +56,8 @@ function toTripCardShape(entry: TripIndexEntry): Trip {
     destination: entry.destination,
     startDate: formatDate(entry.startDate),
     endDate: formatDate(entry.endDate),
+    rawStartDate: entry.startDate,
+    rawEndDate: entry.endDate,
     photos: entry.coverImage
       ? [entry.coverImage]
       : ['https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=800&q=80'],
@@ -91,7 +99,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const [userName, setUserName] = useState('');
   const [refreshing, setRefreshing] = useState(false);
-  const [realTrips, setRealTrips] = useState<Trip[]>([]);
+  const [realTrips, setRealTrips] = useState<RealTrip[]>([]);
 
   // Combine real + sample for stats
   const allTrips = [...realTrips, ...SAMPLE_TRIPS];
@@ -205,12 +213,15 @@ export default function HomeScreen() {
     if (isSample) {
       router.push({ pathname: '/trip/[id]', params: { id: trip.id } });
     } else {
+      const real = trip as RealTrip;
       router.push({
         pathname: '/trip/[id]',
         params: {
           id: trip.id,
           destination: trip.destination,
           tripName: trip.name,
+          startDate: real.rawStartDate || '',
+          endDate: real.rawEndDate || '',
         },
       });
     }
