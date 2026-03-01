@@ -33,6 +33,8 @@ function actionTypeToNotifType(actionType: string): LocalNotification['type'] {
     trip_updated: 'itinerary_update',
     packing_updated: 'reminder',
     booking_added: 'expense_added',
+    booking_updated: 'expense_added',
+    booking_removed: 'expense_added',
     chat_message: 'reminder',
   };
   return map[actionType] || 'reminder';
@@ -49,6 +51,8 @@ function actionTypeToTitle(actionType: string): string {
     trip_updated: 'Trip updated',
     packing_updated: 'Packing list updated',
     booking_added: 'New booking',
+    booking_updated: 'Booking updated',
+    booking_removed: 'Booking removed',
     chat_message: 'New message',
   };
   return map[actionType] || 'Trip update';

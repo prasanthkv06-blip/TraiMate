@@ -71,6 +71,7 @@ export interface TripBlob {
   packingItems: PackingItemLocal[];
   invitations?: InvitationLocal[];
   members?: TripMemberLocal[];
+  bookings?: BookingLocal[];
   polls?: PollLocal[];
   activityLog?: ActivityLogEntry[];
   chatMessages?: ChatMessageLocal[];
@@ -104,7 +105,7 @@ export interface ActivityLogEntry {
   id: string;
   userId: string;
   userName: string;
-  actionType: 'member_joined' | 'expense_added' | 'itinerary_updated' | 'poll_created' | 'poll_voted' | 'journal_added' | 'trip_updated' | 'packing_updated' | 'booking_added' | 'chat_message';
+  actionType: 'member_joined' | 'expense_added' | 'itinerary_updated' | 'poll_created' | 'poll_voted' | 'journal_added' | 'trip_updated' | 'packing_updated' | 'booking_added' | 'booking_updated' | 'booking_removed' | 'chat_message';
   details: string;
   emoji: string;
   createdAt: string;
@@ -115,6 +116,33 @@ export interface ChatMessageLocal {
   userId: string;
   userName: string;
   text: string;
+  createdAt: string;
+}
+
+export type BookingType = 'flight' | 'hotel' | 'train' | 'activity' | 'car_rental';
+
+export interface BookingLocal {
+  id: string;
+  type: BookingType;
+  title: string;
+  confirmationCode?: string;
+  from?: string;
+  to?: string;
+  location?: string;
+  startDate: string;
+  startTime?: string;
+  endDate?: string;
+  endTime?: string;
+  provider?: string;
+  pricePerUnit?: number;
+  totalPrice?: number;
+  currency?: string;
+  notes?: string;
+  returnFrom?: string;
+  returnTo?: string;
+  returnDate?: string;
+  returnTime?: string;
+  addedBy: string;
   createdAt: string;
 }
 

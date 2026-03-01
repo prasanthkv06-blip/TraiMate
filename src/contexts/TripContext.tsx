@@ -6,8 +6,11 @@
  */
 import React, { createContext, useContext, useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import type { ItineraryDay } from '../utils/itineraryGenerator';
+import type { BookingLocal } from '../services/storageCache';
 import * as tripService from '../services/tripService';
 import { loadTripLocally } from '../services/storageCache';
+
+export type { BookingLocal } from '../services/storageCache';
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -68,6 +71,12 @@ interface TripContextValue {
   addExpense: (expense: TripExpense) => void;
   removeExpense: (id: string) => void;
 
+  // Bookings
+  bookings: BookingLocal[];
+  addBooking: (booking: BookingLocal) => void;
+  updateBooking: (id: string, updates: Partial<BookingLocal>) => void;
+  removeBooking: (id: string) => void;
+
   // Journal
   journalEntries: Record<number, string>;
   setJournalEntry: (day: number, text: string) => void;
@@ -116,6 +125,9 @@ export function TripProvider({ children }: { children: React.ReactNode }) {
   // Expenses
   const [expenses, setExpenses] = useState<TripExpense[]>([]);
 
+  // Bookings
+  const [bookings, setBookings] = useState<BookingLocal[]>([]);
+
   // Journal entries (text per day)
   const [journalEntries, setJournalEntries] = useState<Record<number, string>>({});
 
@@ -135,6 +147,7 @@ export function TripProvider({ children }: { children: React.ReactNode }) {
     if (blob) {
       if (blob.itinerary.length > 0) setItineraryState(blob.itinerary);
       if (blob.expenses.length > 0) setExpenses(blob.expenses);
+      if (blob.bookings && blob.bookings.length > 0) setBookings(blob.bookings);
       if (Object.keys(blob.journalEntries).length > 0) setJournalEntries(blob.journalEntries);
       if (Object.keys(blob.journalMoods).length > 0) setJournalMoods(blob.journalMoods);
       if (Object.keys(blob.journalPhotos).length > 0) setJournalPhotos(blob.journalPhotos);
@@ -180,6 +193,30 @@ export function TripProvider({ children }: { children: React.ReactNode }) {
     const tripId = loadedTripIdRef.current;
     if (tripId) {
       tripService.removeExpense(tripId, id);
+    }
+  }, []);
+
+  const addBooking = useCallback((booking: BookingLocal) => {
+    setBookings(prev => [booking, ...prev]);
+    const tripId = loadedTripIdRef.current;
+    if (tripId) {
+      tripService.addBooking(tripId, booking);
+    }
+  }, []);
+
+  const updateBooking = useCallback((id: string, updates: Partial<BookingLocal>) => {
+    setBookings(prev => prev.map(b => b.id === id ? { ...b, ...updates } : b));
+    const tripId = loadedTripIdRef.current;
+    if (tripId) {
+      tripService.updateBooking(tripId, id, updates);
+    }
+  }, []);
+
+  const removeBooking = useCallback((id: string) => {
+    setBookings(prev => prev.filter(b => b.id !== id));
+    const tripId = loadedTripIdRef.current;
+    if (tripId) {
+      tripService.removeBooking(tripId, id);
     }
   }, []);
 
@@ -237,6 +274,10 @@ export function TripProvider({ children }: { children: React.ReactNode }) {
     expenses,
     addExpense,
     removeExpense,
+    bookings,
+    addBooking,
+    updateBooking,
+    removeBooking,
     journalEntries,
     setJournalEntry,
     journalMoods,
@@ -247,8 +288,9 @@ export function TripProvider({ children }: { children: React.ReactNode }) {
     isLoaded,
     loadFromStorage,
   }), [
-    tripMeta, squad, itinerary, expenses, journalEntries, journalMoods, journalPhotos,
+    tripMeta, squad, itinerary, expenses, bookings, journalEntries, journalMoods, journalPhotos,
     isLoaded, setTripMeta, setSquad, addSquadMember, setItinerary, addExpense, removeExpense,
+    addBooking, updateBooking, removeBooking,
     setJournalEntry, setJournalMood, addJournalPhoto, removeJournalPhoto, loadFromStorage,
   ]);
 
