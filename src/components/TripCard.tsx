@@ -30,6 +30,7 @@ export interface Trip {
 interface TripCardProps {
   trip: Trip;
   onPress?: () => void;
+  onLongPress?: () => void;
 }
 
 const PHASE_CONFIG = {
@@ -38,7 +39,7 @@ const PHASE_CONFIG = {
   review: { label: 'Memories', color: '#8B6DB5', emoji: '📸' },
 };
 
-function TripCard({ trip, onPress }: TripCardProps) {
+function TripCard({ trip, onPress, onLongPress }: TripCardProps) {
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
   const fadeAnim = useRef(new Animated.Value(1)).current;
 
@@ -70,6 +71,8 @@ function TripCard({ trip, onPress }: TripCardProps) {
   return (
     <Pressable
       onPress={onPress}
+      onLongPress={onLongPress}
+      delayLongPress={500}
       style={({ pressed }) => [
         styles.container,
         pressed && styles.pressed,
@@ -131,7 +134,7 @@ function TripCard({ trip, onPress }: TripCardProps) {
 }
 
 export default React.memo(TripCard, (prev, next) =>
-  prev.trip.id === next.trip.id && prev.onPress === next.onPress
+  prev.trip.id === next.trip.id && prev.onPress === next.onPress && prev.onLongPress === next.onLongPress
 );
 
 const styles = StyleSheet.create({

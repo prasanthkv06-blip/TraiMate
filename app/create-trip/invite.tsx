@@ -24,6 +24,7 @@ import { Ionicons } from '@expo/vector-icons';
 import QRCode from 'react-native-qrcode-svg';
 import { Colors, Fonts, FontSizes, Spacing, BorderRadius, Shadows } from '../../src/constants/theme';
 import { createTrip } from '../../src/services/tripService';
+import { getDestinationImage } from '../../src/utils/destinationImages';
 import {
   createInvitation,
   generateShareMessage,
@@ -367,6 +368,7 @@ export default function InviteScreen() {
       destination: destination || '',
       startDate: startDate || null,
       endDate: endDate || null,
+      coverImage: getDestinationImage(destination || ''),
       currency,
       tripType,
     });

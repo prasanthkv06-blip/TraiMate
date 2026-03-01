@@ -6,7 +6,6 @@ import {
   ScrollView,
   TextInput,
   Pressable,
-  Alert,
   Animated,
   Dimensions,
   ActivityIndicator,
@@ -16,10 +15,17 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
+import { ImageBackground } from 'react-native';
 import { Colors, Fonts, FontSizes, Spacing, BorderRadius, Shadows } from '../../src/constants/theme';
 import { usePlaceAutocomplete } from '../../src/hooks/useGooglePlaces';
+import { getDestinationImage } from '../../src/utils/destinationImages';
+import { callGemini, isConfigured as isGeminiConfigured } from '../../src/lib/gemini';
+import { getCached, setCache } from '../../src/lib/apiCache';
+import { fetchTrips } from '../../src/services/tripService';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const AI_PICK_WIDTH = 160;
+const AI_PICK_HEIGHT = 200;
 
 // ── Data ───────────────────────────────────────────────────────────────
 
@@ -81,6 +87,10 @@ export default function ExploreScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const { results: autocompleteResults, isLoading: autocompleteLoading } = usePlaceAutocomplete(searchQuery);
 
+  // AI Picks state
+  const [aiPicks, setAiPicks] = useState<{ name: string; country: string; tagline: string }[]>([]);
+  const [aiPicksLoading, setAiPicksLoading] = useState(true);
+
   // Staggered entrance animations
   const headerAnim = useRef(new Animated.Value(0)).current;
   const searchAnim = useRef(new Animated.Value(0)).current;
@@ -126,6 +136,49 @@ export default function ExploreScreen() {
     sequence.start();
   }, []);
 
+  // ── Load AI picks ────────────────────────────────────────────────────
+  useEffect(() => {
+    loadAIPicks();
+  }, []);
+
+  const STATIC_PICKS = [
+    { name: 'Lisbon', country: 'Portugal', tagline: 'Sunny coastal charm' },
+    { name: 'Seoul', country: 'South Korea', tagline: 'K-culture capital' },
+    { name: 'Marrakech', country: 'Morocco', tagline: 'Spice-scented medinas' },
+    { name: 'Prague', country: 'Czech Republic', tagline: 'Gothic fairy tale' },
+  ];
+
+  const loadAIPicks = async () => {
+    const cacheKey = 'explore_ai_picks';
+    const cached = await getCached<typeof STATIC_PICKS>(cacheKey);
+    if (cached) { setAiPicks(cached); setAiPicksLoading(false); return; }
+
+    if (!isGeminiConfigured()) { setAiPicks(STATIC_PICKS); setAiPicksLoading(false); return; }
+
+    try {
+      // Get user's past destinations to personalize
+      const trips = await fetchTrips();
+      const pastDests = trips.map(t => t.destination).filter(Boolean).slice(0, 5);
+      const context = pastDests.length > 0
+        ? `The user has visited: ${pastDests.join(', ')}. Suggest 4 NEW destinations they haven't been to but would enjoy based on their travel history.`
+        : 'Suggest 4 trending and diverse travel destinations for 2026.';
+
+      const prompt = `${context}
+Return ONLY valid JSON (no markdown): [{"name":"City","country":"Country","tagline":"3-5 word tagline"}]`;
+
+      const resp = await callGemini(prompt, { temperature: 0.8, maxOutputTokens: 256, responseMimeType: 'application/json' });
+      const parsed = JSON.parse(resp) as typeof STATIC_PICKS;
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        const picks = parsed.slice(0, 4);
+        await setCache(cacheKey, picks);
+        setAiPicks(picks);
+      } else { setAiPicks(STATIC_PICKS); }
+    } catch {
+      setAiPicks(STATIC_PICKS);
+    }
+    setAiPicksLoading(false);
+  };
+
   // ── Search filtering ────────────────────────────────────────────────
   const query = searchQuery.trim().toLowerCase();
 
@@ -156,14 +209,14 @@ export default function ExploreScreen() {
 
   // ── Handlers ────────────────────────────────────────────────────────
 
-  const handleDestinationPress = (name: string) => {
+  const handleDestinationPress = (name: string, country?: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    Alert.alert('Discover', `Opening ${name} guide...`);
+    router.push({ pathname: '/explore/destination' as any, params: { name, country: country || '' } });
   };
 
   const handleCategoryPress = (label: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    Alert.alert('Category', `Browsing ${label}`);
+    router.push({ pathname: '/explore/category' as any, params: { label } });
   };
 
   const handleTrendingPress = (tag: string) => {
@@ -257,6 +310,47 @@ export default function ExploreScreen() {
           </Animated.View>
         )}
 
+        {/* ── AI Picks for You ────────────────────────── */}
+        {!query && (
+          <Animated.View style={{ opacity: destinationsAnim, transform: [{ translateY: destinationsY }] }}>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="sparkles-outline" size={20} color={Colors.accent} />
+              <Text style={styles.sectionTitle}>AI Picks for You</Text>
+            </View>
+            {aiPicksLoading ? (
+              <View style={{ paddingVertical: Spacing.lg, alignItems: 'center' }}>
+                <ActivityIndicator size="small" color={Colors.accent} />
+              </View>
+            ) : (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalScroll}>
+                {aiPicks.map((pick) => (
+                  <Pressable
+                    key={`${pick.name}-${pick.country}`}
+                    onPress={() => handleDestinationPress(pick.name, pick.country)}
+                    style={({ pressed }) => [styles.aiPickCard, pressed && styles.pressedCard]}
+                  >
+                    <ImageBackground
+                      source={{ uri: getDestinationImage(pick.name) }}
+                      style={styles.aiPickImage}
+                      imageStyle={styles.aiPickImageStyle}
+                    >
+                      <LinearGradient colors={['transparent', 'rgba(44,37,32,0.85)']} style={StyleSheet.absoluteFillObject} />
+                      <View style={styles.aiPickBadge}>
+                        <Ionicons name="sparkles" size={10} color={Colors.white} />
+                      </View>
+                      <View style={styles.aiPickContent}>
+                        <Text style={styles.aiPickName}>{pick.name}</Text>
+                        <Text style={styles.aiPickCountry}>{pick.country}</Text>
+                        <Text style={styles.aiPickTagline} numberOfLines={1}>{pick.tagline}</Text>
+                      </View>
+                    </ImageBackground>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            )}
+          </Animated.View>
+        )}
+
         {/* ── Popular Destinations ───────────────────── */}
         <Animated.View style={{ opacity: destinationsAnim, transform: [{ translateY: destinationsY }] }}>
           <View style={styles.sectionHeader}>
@@ -273,7 +367,7 @@ export default function ExploreScreen() {
               {filteredDestinations.map((dest, index) => (
                 <Pressable
                   key={dest.name}
-                  onPress={() => handleDestinationPress(dest.name)}
+                  onPress={() => handleDestinationPress(dest.name, dest.country)}
                   style={({ pressed }) => [
                     styles.destinationCard,
                     pressed && styles.pressedCard,
@@ -618,6 +712,55 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.bodyMedium,
     fontSize: FontSizes.sm,
     color: Colors.text,
+  },
+
+  // AI Picks
+  aiPickCard: {
+    width: AI_PICK_WIDTH,
+    height: AI_PICK_HEIGHT,
+    borderRadius: BorderRadius.md,
+    overflow: 'hidden',
+    ...Shadows.card,
+  },
+  aiPickImage: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  aiPickImageStyle: {
+    borderRadius: BorderRadius.md,
+  },
+  aiPickBadge: {
+    position: 'absolute',
+    top: Spacing.sm,
+    right: Spacing.sm,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: Colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  aiPickContent: {
+    padding: Spacing.md,
+    gap: 2,
+  },
+  aiPickName: {
+    fontFamily: Fonts.heading,
+    fontSize: FontSizes.lg,
+    color: '#FFFFFF',
+  },
+  aiPickCountry: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: FontSizes.xs,
+    color: 'rgba(255,255,255,0.7)',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  aiPickTagline: {
+    fontFamily: Fonts.body,
+    fontSize: FontSizes.xs,
+    color: 'rgba(255,255,255,0.55)',
+    marginTop: 2,
   },
 
   // Shared

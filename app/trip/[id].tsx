@@ -62,9 +62,10 @@ import {
 import { generateDailyBriefing, type LiveContext } from '../../src/lib/gemini';
 import { getCurrencySymbol } from '../../src/lib/exchangeRate';
 import { useTripContext } from '../../src/contexts/TripContext';
-import { getUserRole, getTripVisibility, setTripVisibility } from '../../src/services/tripService';
+import { getUserRole, getTripVisibility, setTripVisibility, renameTrip, duplicateTrip, deleteTrip } from '../../src/services/tripService';
 import { hasPermission, type TripRole } from '../../src/utils/permissions';
 import type { TripVisibility, BookingLocal } from '../../src/services/storageCache';
+import { getDestinationImage } from '../../src/utils/destinationImages';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -357,7 +358,7 @@ export default function TripDetailScreen() {
         destination: cleanDestination(params.destination || ''),
         startDate: formatDate(params.startDate),
         endDate: formatDate(params.endDate),
-        photos: ['https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=800&q=80'],
+        photos: [getDestinationImage(params.destination || '')],
         memberCount: 0, // dynamic — uses squad.length
         emoji: getDestEmoji(params.destination || ''),
         phase: 'planning' as const,
@@ -367,7 +368,7 @@ export default function TripDetailScreen() {
         destination: 'Destination TBD',
         startDate: 'TBD',
         endDate: 'TBD',
-        photos: ['https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=800&q=80'],
+        photos: [getDestinationImage('')],
         memberCount: 1,
         emoji: '🌍',
         phase: 'planning' as const,
@@ -438,6 +439,9 @@ export default function TripDetailScreen() {
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [showDurationPicker, setShowDurationPicker] = useState(false);
   const [showTripMenu, setShowTripMenu] = useState(false);
+  const [showRenameModal, setShowRenameModal] = useState(false);
+  const [renameValue, setRenameValue] = useState('');
+  const [localTripName, setLocalTripName] = useState(trip.name);
   const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(new Set());
 
   // ── Role-based permissions ─────────────────────────────────────────────
@@ -1124,7 +1128,7 @@ export default function TripDetailScreen() {
           <Text style={styles.heroDestination}>
             {trip.emoji} {trip.destination}
           </Text>
-          <Text style={styles.heroTitle}>{trip.name}</Text>
+          <Text style={styles.heroTitle}>{localTripName}</Text>
           <View style={styles.heroMeta}>
             <Text style={styles.heroDate}>{trip.startDate} — {trip.endDate}</Text>
             <View style={styles.heroMembers}>
@@ -3128,9 +3132,30 @@ export default function TripDetailScreen() {
             <View style={styles.tripMenuGrid}>
               {[
                 { label: 'Share', icon: 'share-outline' as const, onPress: () => { setShowTripMenu(false); Share.share({ message: `Check out my trip to ${trip.destination}! ✈️` }); } },
-                { label: 'Rename', icon: 'create-outline' as const, onPress: () => { setShowTripMenu(false); crossAlert('Edit Trip Name', 'Coming Soon'); } },
-                { label: 'Duplicate', icon: 'copy-outline' as const, onPress: () => { setShowTripMenu(false); crossAlert('Duplicate Trip', 'Coming Soon'); } },
-                { label: 'Export', icon: 'download-outline' as const, onPress: () => { setShowTripMenu(false); crossAlert('Export Itinerary', 'Coming Soon'); } },
+                { label: 'Rename', icon: 'create-outline' as const, onPress: () => { setShowTripMenu(false); setRenameValue(localTripName); setShowRenameModal(true); } },
+                { label: 'Duplicate', icon: 'copy-outline' as const, onPress: async () => {
+                  setShowTripMenu(false);
+                  if (!params.id) return;
+                  try {
+                    const copy = await duplicateTrip(params.id);
+                    crossAlert('Trip Duplicated', `"${copy.name}" has been created.`, [
+                      { text: 'Stay Here', style: 'cancel' },
+                      { text: 'Go to Copy', onPress: () => router.replace({ pathname: '/trip/[id]', params: { id: copy.id, destination: copy.destination, tripName: copy.name, startDate: copy.startDate || '', endDate: copy.endDate || '' } }) },
+                    ]);
+                  } catch { crossAlert('Error', 'Failed to duplicate trip.'); }
+                } },
+                { label: 'Export', icon: 'download-outline' as const, onPress: () => {
+                  setShowTripMenu(false);
+                  const lines: string[] = [`✈️ ${localTripName} — ${trip.destination}`, `${trip.startDate} – ${trip.endDate}`, ''];
+                  if (tripCtx.itinerary.length > 0) {
+                    tripCtx.itinerary.forEach(day => {
+                      lines.push(`📅 Day ${day.dayNumber}${day.title ? ` — ${day.title}` : ''}`);
+                      day.items.forEach(item => { lines.push(`  ${item.emoji || '📍'} ${item.time} ${item.title}${item.notes ? ` (${item.notes})` : ''}`); });
+                      lines.push('');
+                    });
+                  } else { lines.push('No itinerary items yet.'); }
+                  Share.share({ message: lines.join('\n'), title: `${localTripName} Itinerary` });
+                } },
               ].map((item) => (
                 <Pressable
                   key={item.label}
@@ -3167,7 +3192,14 @@ export default function TripDetailScreen() {
             )}
             {canDeleteTrip && (
               <Pressable
-                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowTripMenu(false); crossAlert('Delete Trip', 'Coming Soon'); }}
+                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowTripMenu(false);
+                  crossAlert('Delete Trip', `Are you sure you want to delete "${localTripName}"? This cannot be undone.`, [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Delete', style: 'destructive', onPress: async () => {
+                      if (params.id) { await deleteTrip(params.id); router.replace('/'); }
+                    } },
+                  ]);
+                }}
                 style={styles.tripMenuDeleteRow}
               >
                 <Ionicons name="trash-outline" size={15} color={Colors.error} />
@@ -3177,6 +3209,43 @@ export default function TripDetailScreen() {
           </View>
         </Pressable>
       )}
+
+      {/* ═══════════════════════════════════════════════
+          RENAME MODAL */}
+      <Modal visible={showRenameModal} transparent animationType="fade" onRequestClose={() => setShowRenameModal(false)}>
+        <Pressable style={{ flex: 1, backgroundColor: 'rgba(44,37,32,0.5)', justifyContent: 'center', alignItems: 'center' }} onPress={() => setShowRenameModal(false)}>
+          <Pressable style={{ backgroundColor: Colors.white, borderRadius: BorderRadius.lg, padding: Spacing.xl, width: SCREEN_WIDTH - 64 }} onPress={() => {}}>
+            <Text style={{ fontFamily: Fonts.heading, fontSize: FontSizes.xl, color: Colors.text, marginBottom: Spacing.md }}>Rename Trip</Text>
+            <TextInput
+              style={{ fontFamily: Fonts.body, fontSize: FontSizes.md, color: Colors.text, backgroundColor: Colors.background, borderRadius: BorderRadius.md, padding: Spacing.md, borderWidth: 1, borderColor: Colors.border, marginBottom: Spacing.lg }}
+              value={renameValue}
+              onChangeText={setRenameValue}
+              placeholder="Trip name"
+              placeholderTextColor={Colors.textMuted}
+              autoFocus
+              selectTextOnFocus
+            />
+            <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
+              <Pressable onPress={() => setShowRenameModal(false)} style={{ flex: 1, padding: Spacing.md, borderRadius: BorderRadius.md, backgroundColor: Colors.background, alignItems: 'center' }}>
+                <Text style={{ fontFamily: Fonts.bodyMedium, fontSize: FontSizes.md, color: Colors.textSecondary }}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                onPress={async () => {
+                  const trimmed = renameValue.trim();
+                  if (!trimmed || !params.id) return;
+                  await renameTrip(params.id, trimmed);
+                  setLocalTripName(trimmed);
+                  setShowRenameModal(false);
+                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                }}
+                style={{ flex: 1, padding: Spacing.md, borderRadius: BorderRadius.md, backgroundColor: Colors.sage, alignItems: 'center' }}
+              >
+                <Text style={{ fontFamily: Fonts.bodySemiBold, fontSize: FontSizes.md, color: Colors.white }}>Save</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       {/* ═══════════════════════════════════════════════
           ARRIVAL / DEPARTURE TIME MODAL

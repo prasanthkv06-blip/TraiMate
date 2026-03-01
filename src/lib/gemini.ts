@@ -12,7 +12,7 @@ const BASE_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODE
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
-function isConfigured(): boolean {
+export function isConfigured(): boolean {
   return API_KEY.length > 0;
 }
 
@@ -22,7 +22,7 @@ interface GeminiOptions {
   responseMimeType?: string;
 }
 
-async function callGemini(prompt: string, options: GeminiOptions = {}): Promise<string> {
+export async function callGemini(prompt: string, options: GeminiOptions = {}): Promise<string> {
   const { temperature = 0.7, maxOutputTokens = 2048, responseMimeType } = options;
 
   const body: any = {

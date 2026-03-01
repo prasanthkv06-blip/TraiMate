@@ -21,6 +21,7 @@ import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Fonts, FontSizes, Spacing, BorderRadius, Shadows } from '../../src/constants/theme';
 import { createTrip } from '../../src/services/tripService';
+import { getDestinationImage } from '../../src/utils/destinationImages';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -533,6 +534,7 @@ export default function DetailsScreen() {
         destination,
         startDate: startDate ? startDate.toISOString() : null,
         endDate: endDate ? endDate.toISOString() : null,
+        coverImage: getDestinationImage(destination),
         currency,
         tripType,
       });

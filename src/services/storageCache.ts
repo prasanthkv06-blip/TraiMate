@@ -228,3 +228,100 @@ export async function getInvitationByCode(inviteCode: string): Promise<Invitatio
   const all = await loadInvitationsLocally();
   return all.find(i => i.inviteCode === inviteCode) || null;
 }
+
+// ── Travel Documents ──────────────────────────────────────────────────────
+
+const DOCUMENTS_KEY = '@traimate_travel_documents';
+
+export type DocumentType = 'passport' | 'visa' | 'national_id' | 'insurance' | 'emergency_contact';
+
+export interface TravelDocument {
+  id: string;
+  type: DocumentType;
+  label: string;
+  fields: Record<string, string>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const DOCUMENT_TYPE_CONFIG: Record<DocumentType, { label: string; emoji: string; fields: { key: string; label: string; secure?: boolean }[] }> = {
+  passport: {
+    label: 'Passport',
+    emoji: '🛂',
+    fields: [
+      { key: 'fullName', label: 'Full Name' },
+      { key: 'number', label: 'Passport Number', secure: true },
+      { key: 'nationality', label: 'Nationality' },
+      { key: 'expiryDate', label: 'Expiry Date' },
+      { key: 'issuingCountry', label: 'Issuing Country' },
+    ],
+  },
+  visa: {
+    label: 'Visa',
+    emoji: '📋',
+    fields: [
+      { key: 'country', label: 'Country' },
+      { key: 'type', label: 'Visa Type' },
+      { key: 'number', label: 'Visa Number', secure: true },
+      { key: 'validFrom', label: 'Valid From' },
+      { key: 'validUntil', label: 'Valid Until' },
+    ],
+  },
+  national_id: {
+    label: 'National ID',
+    emoji: '🪪',
+    fields: [
+      { key: 'fullName', label: 'Full Name' },
+      { key: 'number', label: 'ID Number', secure: true },
+      { key: 'expiryDate', label: 'Expiry Date' },
+    ],
+  },
+  insurance: {
+    label: 'Travel Insurance',
+    emoji: '🛡️',
+    fields: [
+      { key: 'provider', label: 'Provider' },
+      { key: 'policyNumber', label: 'Policy Number', secure: true },
+      { key: 'emergencyPhone', label: 'Emergency Phone' },
+      { key: 'validFrom', label: 'Valid From' },
+      { key: 'validUntil', label: 'Valid Until' },
+    ],
+  },
+  emergency_contact: {
+    label: 'Emergency Contact',
+    emoji: '🆘',
+    fields: [
+      { key: 'name', label: 'Contact Name' },
+      { key: 'relationship', label: 'Relationship' },
+      { key: 'phone', label: 'Phone Number' },
+      { key: 'email', label: 'Email' },
+    ],
+  },
+};
+
+export async function loadDocuments(): Promise<TravelDocument[]> {
+  const raw = await AsyncStorage.getItem(DOCUMENTS_KEY);
+  if (!raw) return [];
+  try { return JSON.parse(raw); } catch { return []; }
+}
+
+export async function saveDocuments(docs: TravelDocument[]): Promise<void> {
+  await AsyncStorage.setItem(DOCUMENTS_KEY, JSON.stringify(docs));
+}
+
+export async function addDocument(doc: TravelDocument): Promise<void> {
+  const docs = await loadDocuments();
+  docs.unshift(doc);
+  await saveDocuments(docs);
+}
+
+export async function updateDocument(id: string, updates: Partial<TravelDocument>): Promise<void> {
+  const docs = await loadDocuments();
+  const updated = docs.map(d => d.id === id ? { ...d, ...updates, updatedAt: new Date().toISOString() } : d);
+  await saveDocuments(updated);
+}
+
+export async function deleteDocument(id: string): Promise<void> {
+  const docs = await loadDocuments();
+  await saveDocuments(docs.filter(d => d.id !== id));
+}

@@ -10,6 +10,7 @@ import {
   RefreshControl,
   Modal,
   Platform,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -22,7 +23,8 @@ import { Colors, Fonts, FontSizes, Spacing, BorderRadius, Shadows } from '../../
 import TripCard from '../../src/components/TripCard';
 import type { Trip } from '../../src/components/TripCard';
 import { SAMPLE_TRIPS } from '../../src/constants/sampleData';
-import { fetchTrips, type TripIndexEntry } from '../../src/services/tripService';
+import { fetchTrips, deleteTrip, type TripIndexEntry } from '../../src/services/tripService';
+import { getDestinationImage } from '../../src/utils/destinationImages';
 
 const USER_NAME_KEY = '@traimate_user_name';
 const AVATAR_EMOJI_KEY = '@traimate_avatar_emoji';
@@ -63,7 +65,7 @@ function toTripCardShape(entry: TripIndexEntry): RealTrip {
     rawEndDate: entry.endDate,
     photos: entry.coverImage
       ? [entry.coverImage]
-      : ['https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=800&q=80'],
+      : [getDestinationImage(entry.destination)],
     memberCount: entry.memberCount,
     phase: entry.phase,
     emoji: entry.emoji,
@@ -229,6 +231,28 @@ export default function HomeScreen() {
     setShowJoinModal(false);
     setJoinCode('');
     router.push({ pathname: '/join/[code]', params: { code } });
+  };
+
+  const handleDeleteTrip = (trip: Trip) => {
+    const isSample = SAMPLE_TRIPS.some(s => s.id === trip.id);
+    if (isSample) return; // Can't delete sample trips
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    Alert.alert(
+      'Delete Trip',
+      `Are you sure you want to delete "${trip.name}"? This cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            await deleteTrip(trip.id);
+            await loadRealTrips();
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          },
+        },
+      ],
+    );
   };
 
   const handleTripPress = (trip: Trip) => {
@@ -439,7 +463,7 @@ export default function HomeScreen() {
               }}
             >
               {realUpcoming.map((trip) => (
-                <TripCard key={trip.id} trip={trip} onPress={() => handleTripPress(trip)} />
+                <TripCard key={trip.id} trip={trip} onPress={() => handleTripPress(trip)} onLongPress={() => handleDeleteTrip(trip)} />
               ))}
             </Animated.View>
           </>
@@ -500,7 +524,7 @@ export default function HomeScreen() {
               }}
             >
               {realPast.map((trip) => (
-                <TripCard key={trip.id} trip={trip} onPress={() => handleTripPress(trip)} />
+                <TripCard key={trip.id} trip={trip} onPress={() => handleTripPress(trip)} onLongPress={() => handleDeleteTrip(trip)} />
               ))}
               {samplePast.map((trip) => (
                 <TripCard key={trip.id} trip={trip} onPress={() => handleTripPress(trip)} />

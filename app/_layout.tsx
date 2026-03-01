@@ -75,6 +75,10 @@ export default function RootLayout() {
           }}
         />
         <Stack.Screen
+          name="explore"
+          options={{ animation: 'slide_from_right' }}
+        />
+        <Stack.Screen
           name="trip"
           options={{ animation: 'slide_from_right' }}
         />

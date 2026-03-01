@@ -1,15 +1,25 @@
 import { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, Pressable, Modal, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Modal, ScrollView, TextInput, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Crypto from 'expo-crypto';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, Fonts, FontSizes, Spacing, BorderRadius, Shadows } from '../../src/constants/theme';
 import { SAMPLE_TRIPS } from '../../src/constants/sampleData';
 import { fetchTrips } from '../../src/services/tripService';
+import {
+  loadDocuments,
+  addDocument,
+  updateDocument,
+  deleteDocument,
+  DOCUMENT_TYPE_CONFIG,
+  type TravelDocument,
+  type DocumentType,
+} from '../../src/services/storageCache';
 
 const USER_NAME_KEY = '@traimate_user_name';
 const ONBOARDING_KEY = '@traimate_onboarded';
@@ -22,6 +32,8 @@ const AVATAR_EMOJIS = [
   '🐻', '🦊', '🐢', '🦜', '🐬', '🦁', '🐼', '🦄',
 ];
 
+const DOC_TYPES: DocumentType[] = ['passport', 'visa', 'national_id', 'insurance', 'emergency_contact'];
+
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -31,11 +43,24 @@ export default function ProfileScreen() {
   const [selectedEmoji, setSelectedEmoji] = useState<string | null>(null);
   const [realTripCount, setRealTripCount] = useState(0);
 
+  // Document state
+  const [documents, setDocuments] = useState<TravelDocument[]>([]);
+  const [showDocModal, setShowDocModal] = useState(false);
+  const [editingDoc, setEditingDoc] = useState<TravelDocument | null>(null);
+  const [docType, setDocType] = useState<DocumentType>('passport');
+  const [docLabel, setDocLabel] = useState('');
+  const [docFields, setDocFields] = useState<Record<string, string>>({});
+
   const loadStats = useCallback(async () => {
     try {
       const entries = await fetchTrips();
       setRealTripCount(entries.length);
     } catch {}
+  }, []);
+
+  const loadDocs = useCallback(async () => {
+    const docs = await loadDocuments();
+    setDocuments(docs);
   }, []);
 
   useEffect(() => {
@@ -46,12 +71,14 @@ export default function ProfileScreen() {
       if (emoji) setAvatarEmoji(emoji);
     });
     loadStats();
-  }, [loadStats]);
+    loadDocs();
+  }, [loadStats, loadDocs]);
 
   useFocusEffect(
     useCallback(() => {
       loadStats();
-    }, [loadStats])
+      loadDocs();
+    }, [loadStats, loadDocs])
   );
 
   const handleOpenPicker = () => {
@@ -74,95 +101,233 @@ export default function ProfileScreen() {
     router.replace('/onboarding/welcome');
   };
 
+  // Document handlers
+  const openAddDoc = (type: DocumentType) => {
+    setEditingDoc(null);
+    setDocType(type);
+    setDocLabel(DOCUMENT_TYPE_CONFIG[type].label);
+    setDocFields({});
+    setShowDocModal(true);
+  };
+
+  const openEditDoc = (doc: TravelDocument) => {
+    setEditingDoc(doc);
+    setDocType(doc.type);
+    setDocLabel(doc.label);
+    setDocFields({ ...doc.fields });
+    setShowDocModal(true);
+  };
+
+  const handleSaveDoc = async () => {
+    const now = new Date().toISOString();
+    if (editingDoc) {
+      await updateDocument(editingDoc.id, { label: docLabel || DOCUMENT_TYPE_CONFIG[docType].label, fields: docFields });
+    } else {
+      await addDocument({
+        id: Crypto.randomUUID(),
+        type: docType,
+        label: docLabel || DOCUMENT_TYPE_CONFIG[docType].label,
+        fields: docFields,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setShowDocModal(false);
+    await loadDocs();
+  };
+
+  const handleDeleteDoc = (doc: TravelDocument) => {
+    Alert.alert('Delete Document', `Remove "${doc.label}"?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete', style: 'destructive', onPress: async () => {
+          await deleteDocument(doc.id);
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          await loadDocs();
+        },
+      },
+    ]);
+  };
+
+  const currentSchema = DOCUMENT_TYPE_CONFIG[docType];
+
   return (
     <View style={[styles.container, { paddingTop: insets.top + Spacing.md }]}>
-      <Text style={styles.title}>Profile</Text>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
+        <Text style={styles.title}>Profile</Text>
 
-      <View style={styles.card}>
-        <Pressable onPress={handleOpenPicker} style={styles.avatarWrapper}>
-          <View style={styles.avatar}>
-            {avatarEmoji ? (
-              <Text style={styles.avatarEmoji}>{avatarEmoji}</Text>
-            ) : (
-              <Text style={styles.avatarText}>
-                {(userName || 'T').charAt(0).toUpperCase()}
-              </Text>
-            )}
-          </View>
-          <View style={styles.editBadge}>
-            <Ionicons name="create-outline" size={12} color={Colors.white} />
-          </View>
-        </Pressable>
-        <Text style={styles.name}>{userName || 'Traveler'}</Text>
-        <Text style={styles.memberSince}>Member since {new Date().getFullYear()}</Text>
-      </View>
+        <View style={styles.card}>
+          <Pressable onPress={handleOpenPicker} style={styles.avatarWrapper}>
+            <View style={styles.avatar}>
+              {avatarEmoji ? (
+                <Text style={styles.avatarEmoji}>{avatarEmoji}</Text>
+              ) : (
+                <Text style={styles.avatarText}>
+                  {(userName || 'T').charAt(0).toUpperCase()}
+                </Text>
+              )}
+            </View>
+            <View style={styles.editBadge}>
+              <Ionicons name="create-outline" size={12} color={Colors.white} />
+            </View>
+          </Pressable>
+          <Text style={styles.name}>{userName || 'Traveler'}</Text>
+          <Text style={styles.memberSince}>Member since {new Date().getFullYear()}</Text>
+        </View>
 
-      {/* Emoji avatar picker modal */}
-      <Modal
-        visible={showEmojiPicker}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowEmojiPicker(false)}
-      >
-        <Pressable style={styles.modalOverlay} onPress={() => setShowEmojiPicker(false)}>
-          <Pressable style={styles.modalContent} onPress={() => {}}>
-            <View style={styles.modalHandle} />
-            <Text style={styles.modalTitle}>Pick your vibe</Text>
-            <ScrollView showsVerticalScrollIndicator={false}>
-              <View style={styles.emojiGrid}>
-                {AVATAR_EMOJIS.map((emoji) => (
-                  <Pressable
-                    key={emoji}
-                    onPress={() => {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      setSelectedEmoji(emoji);
-                    }}
-                    style={[
-                      styles.emojiCell,
-                      selectedEmoji === emoji && styles.emojiCellSelected,
-                    ]}
-                  >
-                    <Text style={styles.emojiText}>{emoji}</Text>
-                  </Pressable>
-                ))}
-              </View>
-            </ScrollView>
-            <Pressable onPress={handleSaveEmoji} style={styles.saveButton}>
-              <LinearGradient
-                colors={['#5E8A5A', '#3D6B39']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.saveButtonGradient}
-              >
-                <Text style={styles.saveButtonText}>Save</Text>
-              </LinearGradient>
+        {/* Emoji avatar picker modal */}
+        <Modal
+          visible={showEmojiPicker}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setShowEmojiPicker(false)}
+        >
+          <Pressable style={styles.modalOverlay} onPress={() => setShowEmojiPicker(false)}>
+            <Pressable style={styles.modalContent} onPress={() => {}}>
+              <View style={styles.modalHandle} />
+              <Text style={styles.modalTitle}>Pick your vibe</Text>
+              <ScrollView showsVerticalScrollIndicator={false}>
+                <View style={styles.emojiGrid}>
+                  {AVATAR_EMOJIS.map((emoji) => (
+                    <Pressable
+                      key={emoji}
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        setSelectedEmoji(emoji);
+                      }}
+                      style={[
+                        styles.emojiCell,
+                        selectedEmoji === emoji && styles.emojiCellSelected,
+                      ]}
+                    >
+                      <Text style={styles.emojiText}>{emoji}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </ScrollView>
+              <Pressable onPress={handleSaveEmoji} style={styles.saveButton}>
+                <LinearGradient
+                  colors={['#5E8A5A', '#3D6B39']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.saveButtonGradient}
+                >
+                  <Text style={styles.saveButtonText}>Save</Text>
+                </LinearGradient>
+              </Pressable>
             </Pressable>
           </Pressable>
-        </Pressable>
-      </Modal>
+        </Modal>
 
-      <View style={styles.statsRow}>
-        {[
-          { value: String(realTripCount + SAMPLE_TRIPS.length), label: 'Trips', icon: 'compass-outline' },
-          { value: String(new Set(SAMPLE_TRIPS.map(t => t.destination.split(',').pop()?.trim())).size), label: 'Countries', icon: 'globe-outline' },
-          { value: String(SAMPLE_TRIPS.reduce((sum, t) => sum + (t.memberCount - 1), 0)), label: 'Friends', icon: 'people-outline' },
-        ].map((stat) => (
-          <View key={stat.label} style={styles.stat}>
-            <Ionicons name={stat.icon as any} size={18} color={Colors.accent} style={{ marginBottom: 4 }} />
-            <Text style={styles.statValue}>{stat.value}</Text>
-            <Text style={styles.statLabel}>{stat.label}</Text>
+        <View style={styles.statsRow}>
+          {[
+            { value: String(realTripCount + SAMPLE_TRIPS.length), label: 'Trips', icon: 'compass-outline' },
+            { value: String(new Set(SAMPLE_TRIPS.map(t => t.destination.split(',').pop()?.trim())).size), label: 'Countries', icon: 'globe-outline' },
+            { value: String(SAMPLE_TRIPS.reduce((sum, t) => sum + (t.memberCount - 1), 0)), label: 'Friends', icon: 'people-outline' },
+          ].map((stat) => (
+            <View key={stat.label} style={styles.stat}>
+              <Ionicons name={stat.icon as any} size={18} color={Colors.accent} style={{ marginBottom: 4 }} />
+              <Text style={styles.statValue}>{stat.value}</Text>
+              <Text style={styles.statLabel}>{stat.label}</Text>
+            </View>
+          ))}
+        </View>
+
+        {/* ── Travel Documents ────────────────────────────── */}
+        <View style={styles.docsSection}>
+          <View style={styles.docsSectionHeader}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm }}>
+              <Ionicons name="document-text-outline" size={20} color={Colors.sage} />
+              <Text style={styles.docsSectionTitle}>Travel Documents</Text>
+            </View>
           </View>
-        ))}
-      </View>
 
-      <Pressable
-        style={styles.resetButton}
-        onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); handleResetOnboarding(); }}
-        accessibilityRole="button"
-        accessibilityLabel="Reset onboarding"
-      >
-        <Text style={styles.resetText}>Reset Onboarding</Text>
-      </Pressable>
+          {documents.length > 0 && documents.map((doc) => {
+            const cfg = DOCUMENT_TYPE_CONFIG[doc.type];
+            return (
+              <Pressable key={doc.id} onPress={() => openEditDoc(doc)} style={styles.docCard}>
+                <View style={styles.docCardLeft}>
+                  <Text style={styles.docCardEmoji}>{cfg.emoji}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.docCardLabel}>{doc.label}</Text>
+                    <Text style={styles.docCardType}>{cfg.label}</Text>
+                  </View>
+                </View>
+                <Pressable onPress={() => handleDeleteDoc(doc)} hitSlop={12}>
+                  <Ionicons name="trash-outline" size={16} color={Colors.textMuted} />
+                </Pressable>
+              </Pressable>
+            );
+          })}
+
+          {/* Add document buttons */}
+          <View style={styles.addDocGrid}>
+            {DOC_TYPES.map((type) => {
+              const cfg = DOCUMENT_TYPE_CONFIG[type];
+              return (
+                <Pressable key={type} onPress={() => openAddDoc(type)} style={styles.addDocBtn}>
+                  <Text style={{ fontSize: 20 }}>{cfg.emoji}</Text>
+                  <Text style={styles.addDocBtnLabel}>{cfg.label}</Text>
+                  <Ionicons name="add-circle-outline" size={16} color={Colors.sage} />
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+
+        {/* Document add/edit modal */}
+        <Modal visible={showDocModal} transparent animationType="slide" onRequestClose={() => setShowDocModal(false)}>
+          <Pressable style={styles.modalOverlay} onPress={() => setShowDocModal(false)}>
+            <Pressable style={[styles.docModalContent, { paddingBottom: insets.bottom + Spacing.lg }]} onPress={() => {}}>
+              <View style={styles.modalHandle} />
+              <Text style={styles.modalTitle}>
+                {editingDoc ? 'Edit' : 'Add'} {currentSchema.emoji} {currentSchema.label}
+              </Text>
+              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                <TextInput
+                  style={styles.docInput}
+                  value={docLabel}
+                  onChangeText={setDocLabel}
+                  placeholder="Label (optional)"
+                  placeholderTextColor={Colors.textMuted}
+                />
+                {currentSchema.fields.map((field) => (
+                  <TextInput
+                    key={field.key}
+                    style={styles.docInput}
+                    value={docFields[field.key] || ''}
+                    onChangeText={(val) => setDocFields(prev => ({ ...prev, [field.key]: val }))}
+                    placeholder={field.label}
+                    placeholderTextColor={Colors.textMuted}
+                    secureTextEntry={field.secure}
+                    autoCapitalize={field.secure ? 'none' : 'words'}
+                  />
+                ))}
+              </ScrollView>
+              <View style={{ flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.md }}>
+                <Pressable onPress={() => setShowDocModal(false)} style={styles.docCancelBtn}>
+                  <Text style={styles.docCancelText}>Cancel</Text>
+                </Pressable>
+                <Pressable onPress={handleSaveDoc} style={styles.docSaveBtn}>
+                  <LinearGradient colors={['#5E8A5A', '#3D6B39']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.docSaveBtnGradient}>
+                    <Text style={styles.docSaveBtnText}>Save</Text>
+                  </LinearGradient>
+                </Pressable>
+              </View>
+            </Pressable>
+          </Pressable>
+        </Modal>
+
+        <Pressable
+          style={styles.resetButton}
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); handleResetOnboarding(); }}
+          accessibilityRole="button"
+          accessibilityLabel="Reset onboarding"
+        >
+          <Text style={styles.resetText}>Reset Onboarding</Text>
+        </Pressable>
+      </ScrollView>
     </View>
   );
 }
@@ -261,6 +426,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: Colors.border,
+    marginTop: Spacing.md,
   },
   resetText: {
     fontFamily: Fonts.bodyMedium,
@@ -330,6 +496,119 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.pill,
   },
   saveButtonText: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: FontSizes.md,
+    color: Colors.white,
+  },
+  // Travel Documents
+  docsSection: {
+    marginBottom: Spacing.xl,
+  },
+  docsSectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.md,
+  },
+  docsSectionTitle: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: FontSizes.lg,
+    color: Colors.text,
+  },
+  docCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    marginBottom: Spacing.sm,
+    ...Shadows.card,
+  },
+  docCardLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: Spacing.md,
+  },
+  docCardEmoji: {
+    fontSize: 24,
+  },
+  docCardLabel: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: FontSizes.md,
+    color: Colors.text,
+  },
+  docCardType: {
+    fontFamily: Fonts.body,
+    fontSize: FontSizes.xs,
+    color: Colors.textMuted,
+    marginTop: 2,
+  },
+  addDocGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+    marginTop: Spacing.sm,
+  },
+  addDocBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.pill,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  addDocBtnLabel: {
+    fontFamily: Fonts.bodyMedium,
+    fontSize: FontSizes.xs,
+    color: Colors.text,
+  },
+  // Doc modal
+  docModalContent: {
+    backgroundColor: Colors.white,
+    borderTopLeftRadius: BorderRadius.lg,
+    borderTopRightRadius: BorderRadius.lg,
+    paddingHorizontal: Spacing.xl,
+    maxHeight: '80%',
+  },
+  docInput: {
+    fontFamily: Fonts.body,
+    fontSize: FontSizes.md,
+    color: Colors.text,
+    backgroundColor: Colors.background,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    marginBottom: Spacing.sm,
+  },
+  docCancelBtn: {
+    flex: 1,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    backgroundColor: Colors.background,
+    alignItems: 'center',
+  },
+  docCancelText: {
+    fontFamily: Fonts.bodyMedium,
+    fontSize: FontSizes.md,
+    color: Colors.textSecondary,
+  },
+  docSaveBtn: {
+    flex: 1,
+    borderRadius: BorderRadius.pill,
+    overflow: 'hidden',
+  },
+  docSaveBtnGradient: {
+    paddingVertical: Spacing.md,
+    alignItems: 'center',
+    borderRadius: BorderRadius.pill,
+  },
+  docSaveBtnText: {
     fontFamily: Fonts.bodySemiBold,
     fontSize: FontSizes.md,
     color: Colors.white,

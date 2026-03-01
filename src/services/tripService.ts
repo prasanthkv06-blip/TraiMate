@@ -165,6 +165,89 @@ export async function deleteTrip(tripId: string): Promise<void> {
   });
 }
 
+// ── Rename trip ─────────────────────────────────────────────────────────
+
+export async function renameTrip(tripId: string, newName: string): Promise<void> {
+  // Update blob meta
+  const blob = await loadTripLocally(tripId);
+  if (blob) {
+    blob.meta.name = newName;
+    await saveTripLocally(tripId, blob);
+  }
+
+  // Update index
+  const index = await loadTripsIndex();
+  const updated = index.map(t => t.id === tripId ? { ...t, name: newName } : t);
+  await saveTripsIndex(updated);
+
+  // Supabase sync
+  // @ts-ignore — Supabase strict types don't match our dynamic schema
+  supabaseSafe(() => supabase.from('trips').update({ name: newName }).eq('id', tripId));
+}
+
+// ── Duplicate trip ──────────────────────────────────────────────────────
+
+export async function duplicateTrip(tripId: string): Promise<TripIndexEntry> {
+  const blob = await loadTripLocally(tripId);
+  const deviceId = await getDeviceId();
+  const newId = Crypto.randomUUID();
+  const now = new Date().toISOString();
+
+  const entry: TripIndexEntry = {
+    id: newId,
+    name: blob ? `${blob.meta.name} (Copy)` : 'Trip Copy',
+    destination: blob?.meta.destination || '',
+    emoji: blob?.meta.emoji || '🌍',
+    startDate: blob?.meta.startDate || null,
+    endDate: blob?.meta.endDate || null,
+    coverImage: blob?.meta.coverImage || null,
+    phase: 'planning',
+    createdBy: deviceId,
+    createdAt: now,
+    memberCount: 1,
+  };
+
+  const newBlob: TripBlob = {
+    meta: entry,
+    itinerary: blob?.itinerary || [],
+    expenses: [],
+    journalEntries: {},
+    journalMoods: {},
+    journalPhotos: {},
+    packingItems: blob?.packingItems || [],
+    members: [{
+      id: Crypto.randomUUID(),
+      userId: deviceId,
+      name: 'You',
+      role: 'organizer',
+      joinedAt: now,
+    }],
+  };
+
+  await saveTripLocally(newId, newBlob);
+
+  const index = await loadTripsIndex();
+  index.unshift(entry);
+  await saveTripsIndex(index);
+
+  // Supabase sync
+  supabaseSafe(async () => {
+    await supabase.from('trips').insert({
+      id: newId,
+      name: entry.name,
+      destination: entry.destination,
+      emoji: entry.emoji,
+      start_date: entry.startDate,
+      end_date: entry.endDate,
+      cover_image: entry.coverImage,
+      phase: 'planning',
+      created_by: deviceId,
+    } as any);
+  });
+
+  return entry;
+}
+
 // ── Itinerary ───────────────────────────────────────────────────────────
 
 export async function saveItinerary(tripId: string, days: ItineraryDay[]): Promise<void> {
