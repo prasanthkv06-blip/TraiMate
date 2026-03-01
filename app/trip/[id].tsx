@@ -399,7 +399,7 @@ export default function TripDetailScreen() {
   const [builtFromScratch, setBuiltFromScratch] = useState(false);
 
   // ── AI generation animation state ──────────────────────────────────────
-  const [genSteps, setGenSteps] = useState<{ msg: string; done: boolean }[]>([]);
+  const [genSteps, setGenSteps] = useState<{ msg: string; icon: string; done: boolean }[]>([]);
   const [genCurrentStep, setGenCurrentStep] = useState(-1);
 
   // ── Editing state ──────────────────────────────────────────────────────
@@ -753,10 +753,10 @@ export default function TripDetailScreen() {
     const styleList = tripStyles.length > 0 ? tripStyles.join(' + ') : 'explorer';
 
     const steps = [
-      { msg: `🔍 Analyzing your trip to ${destName}...`, done: false },
-      { msg: `🎯 Matching your ${styleList} vibes...`, done: false },
-      { msg: `📝 Building a ${duration}-day itinerary...`, done: false },
-      { msg: `💡 Adding local insider tips...`, done: false },
+      { msg: `Analyzing your trip to ${destName}`, icon: 'search-outline' as const, done: false },
+      { msg: `Matching your ${styleList} vibes`, icon: 'color-palette-outline' as const, done: false },
+      { msg: `Building a ${duration}-day itinerary`, icon: 'map-outline' as const, done: false },
+      { msg: `Adding local insider tips`, icon: 'bulb-outline' as const, done: false },
     ];
 
     setGenSteps(steps);
@@ -827,10 +827,10 @@ export default function TripDetailScreen() {
     const styleList = tripStyles.length > 0 ? tripStyles.join(' + ') : 'explorer';
 
     const steps = [
-      { msg: `🔍 Analyzing your trip to ${destName}...`, done: false },
-      { msg: `🎯 Matching your ${styleList} vibes...`, done: false },
-      { msg: `📝 Building a ${duration}-day itinerary...`, done: false },
-      { msg: `💡 Adding local insider tips...`, done: false },
+      { msg: `Analyzing your trip to ${destName}`, icon: 'search-outline' as const, done: false },
+      { msg: `Matching your ${styleList} vibes`, icon: 'color-palette-outline' as const, done: false },
+      { msg: `Building a ${duration}-day itinerary`, icon: 'map-outline' as const, done: false },
+      { msg: `Adding local insider tips`, icon: 'bulb-outline' as const, done: false },
     ];
 
     setGenSteps(steps);
@@ -1307,42 +1307,71 @@ export default function TripDetailScreen() {
             ═══════════════════════════════════════════════ */}
             {itineraryStatus === 'generating' && (
               <View style={styles.genContainer}>
-                <View style={styles.genCard}>
+                <LinearGradient
+                  colors={[`${Colors.sage}12`, `${Colors.sage}06`]}
+                  style={styles.genCard}
+                >
                   <View style={styles.genCardHeader}>
-                    <Ionicons name="sparkles" size={24} color={Colors.sage} />
-                    <Text style={styles.genCardTitle}>AI Travel Agent</Text>
+                    <View style={styles.genCardIconWrap}>
+                      <Ionicons name="sparkles" size={20} color={Colors.white} />
+                    </View>
+                    <View>
+                      <Text style={styles.genCardTitle}>AI Travel Agent</Text>
+                      <Text style={styles.genCardSubtitle}>Crafting your perfect itinerary</Text>
+                    </View>
                   </View>
 
-                  {genSteps.map((step, i) => (
-                    <View key={i} style={styles.genStep}>
-                      {step.done ? (
-                        <View style={styles.genStepDotDone}>
-                          <Text style={styles.genStepCheck}>✓</Text>
-                        </View>
-                      ) : i === genCurrentStep ? (
-                        <View style={styles.genStepDotActive} />
-                      ) : (
-                        <View style={styles.genStepDotPending} />
-                      )}
-                      <Text
-                        style={[
-                          styles.genStepText,
-                          step.done && styles.genStepTextDone,
-                          i === genCurrentStep && styles.genStepTextActive,
-                        ]}
-                      >
-                        {step.msg}
-                      </Text>
-                    </View>
-                  ))}
-                </View>
+                  {genSteps.map((step, i) => {
+                    const isActive = i === genCurrentStep;
+                    const isDone = step.done;
+                    return (
+                      <View key={i} style={[styles.genStep, isActive && styles.genStepActive]}>
+                        {isDone ? (
+                          <View style={styles.genStepDotDone}>
+                            <Ionicons name="checkmark" size={14} color={Colors.white} />
+                          </View>
+                        ) : isActive ? (
+                          <View style={styles.genStepDotActive}>
+                            <Ionicons name={step.icon as any} size={14} color={Colors.sage} />
+                          </View>
+                        ) : (
+                          <View style={styles.genStepDotPending}>
+                            <Ionicons name={step.icon as any} size={14} color={Colors.textMuted} />
+                          </View>
+                        )}
+                        <Text
+                          style={[
+                            styles.genStepText,
+                            isDone && styles.genStepTextDone,
+                            isActive && styles.genStepTextActive,
+                          ]}
+                        >
+                          {step.msg}
+                        </Text>
+                        {isActive && (
+                          <View style={styles.genStepSpinner}>
+                            <Ionicons name="ellipsis-horizontal" size={16} color={Colors.sage} />
+                          </View>
+                        )}
+                      </View>
+                    );
+                  })}
+
+                  {/* Progress bar */}
+                  <View style={styles.genProgressTrack}>
+                    <View style={[styles.genProgressFill, { width: `${((genSteps.filter(s => s.done).length) / Math.max(genSteps.length, 1)) * 100}%` }]} />
+                  </View>
+                </LinearGradient>
 
                 {/* Skeleton days */}
                 {[1, 2, 3].map(i => (
                   <View key={i} style={styles.skeletonDay}>
-                    <View style={styles.skeletonBadge} />
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                      <View style={styles.skeletonBadge} />
+                      <View style={[styles.skeletonLine, { width: '40%', marginBottom: 0 }]} />
+                    </View>
                     <View style={styles.skeletonLine} />
-                    <View style={[styles.skeletonLine, { width: '60%' }]} />
+                    <View style={[styles.skeletonLine, { width: '65%' }]} />
                   </View>
                 ))}
               </View>
@@ -3669,70 +3698,105 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.xl,
   },
   genCard: {
-    backgroundColor: Colors.white,
     borderRadius: BorderRadius.lg,
-    padding: 20,
+    padding: Spacing.xl,
     marginBottom: Spacing.xl,
-    borderWidth: 1.5,
-    borderColor: Colors.sage,
-    ...Shadows.card,
+    borderWidth: 1,
+    borderColor: `${Colors.sage}30`,
+    overflow: 'hidden',
+    ...Shadows.cardHover,
   },
   genCardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    marginBottom: 18,
+    gap: 12,
+    marginBottom: Spacing.lg,
+  },
+  genCardIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    backgroundColor: Colors.sage,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   genCardTitle: {
-    fontFamily: Fonts.bodySemiBold,
+    fontFamily: Fonts.heading,
     fontSize: FontSizes.lg,
     color: Colors.text,
+  },
+  genCardSubtitle: {
+    fontFamily: Fonts.body,
+    fontSize: FontSizes.xs,
+    color: Colors.textMuted,
+    marginTop: 1,
   },
   genStep: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    marginBottom: 14,
+    marginBottom: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: BorderRadius.sm,
+  },
+  genStepActive: {
+    backgroundColor: `${Colors.sage}10`,
   },
   genStepDotDone: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+    width: 28,
+    height: 28,
+    borderRadius: 10,
     backgroundColor: Colors.sage,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  genStepCheck: {
-    color: Colors.white,
-    fontSize: 12,
-    fontWeight: '700',
-  },
   genStepDotActive: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: Colors.sageLight,
+    width: 28,
+    height: 28,
+    borderRadius: 10,
+    backgroundColor: `${Colors.sage}18`,
     borderWidth: 2,
     borderColor: Colors.sage,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   genStepDotPending: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+    width: 28,
+    height: 28,
+    borderRadius: 10,
     backgroundColor: Colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   genStepText: {
-    fontFamily: Fonts.bodyMedium,
+    fontFamily: Fonts.body,
     fontSize: FontSizes.sm,
     color: Colors.textMuted,
     flex: 1,
   },
   genStepTextDone: {
-    color: Colors.textSecondary,
+    color: Colors.sage,
+    fontFamily: Fonts.bodyMedium,
   },
   genStepTextActive: {
     color: Colors.text,
     fontFamily: Fonts.bodySemiBold,
+  },
+  genStepSpinner: {
+    opacity: 0.6,
+  },
+  genProgressTrack: {
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Colors.border,
+    marginTop: Spacing.md,
+    overflow: 'hidden',
+  },
+  genProgressFill: {
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Colors.sage,
   },
   skeletonDay: {
     backgroundColor: Colors.white,
@@ -3742,15 +3806,14 @@ const styles = StyleSheet.create({
     ...Shadows.card,
   },
   skeletonBadge: {
-    width: 60,
-    height: 20,
+    width: 32,
+    height: 16,
     borderRadius: 8,
     backgroundColor: Colors.border,
-    marginBottom: 12,
   },
   skeletonLine: {
     width: '80%',
-    height: 14,
+    height: 12,
     borderRadius: 6,
     backgroundColor: Colors.border,
     marginBottom: 8,
