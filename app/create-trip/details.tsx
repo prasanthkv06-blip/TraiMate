@@ -550,7 +550,7 @@ export default function DetailsScreen() {
     }
   };
 
-  const canProceed = tripName.trim().length > 0;
+  const canProceed = tripName.trim().length > 0 && startDate !== null && endDate !== null;
 
   // Get currency objects for suggested ones
   const suggestedCurrencyObjects = suggestedCurrencies

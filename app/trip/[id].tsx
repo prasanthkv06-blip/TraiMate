@@ -526,7 +526,7 @@ export default function TripDetailScreen() {
   };
 
   // ── Invite helpers ─────────────────────────────────────────────────────
-  const inviteLink = `traimate.app/join/${inviteCode}`;
+  const inviteLink = `https://expo.dev/@prasanthkv06/TraiMate?invite=${inviteCode}`;
 
   const handleCopyLink = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -537,8 +537,28 @@ export default function TripDetailScreen() {
   const handleShare = async (channel: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const msg = `Yo! Join "${trip.name}" to ${trip.destination} on TrailMate 🌍\n\n${inviteLink}`;
-    if (channel === 'native') {
-      try { await Share.share({ message: msg, title: trip.name }); } catch {}
+    switch (channel) {
+      case 'whatsapp':
+        Linking.openURL(`https://wa.me/?text=${encodeURIComponent(msg)}`).catch(() => {
+          Share.share({ message: msg, title: trip.name });
+        });
+        break;
+      case 'sms': {
+        const smsUrl = Platform.OS === 'ios'
+          ? `sms:&body=${encodeURIComponent(msg)}`
+          : `sms:?body=${encodeURIComponent(msg)}`;
+        Linking.openURL(smsUrl).catch(() => {
+          Share.share({ message: msg, title: trip.name });
+        });
+        break;
+      }
+      case 'email':
+        Linking.openURL(`mailto:?subject=${encodeURIComponent(`Join ${trip.name} on TrailMate`)}&body=${encodeURIComponent(msg)}`).catch(() => {
+          Share.share({ message: msg, title: trip.name });
+        });
+        break;
+      default:
+        try { await Share.share({ message: msg, title: trip.name }); } catch {}
     }
   };
 
@@ -3016,7 +3036,7 @@ const styles = StyleSheet.create({
   },
   // ── Hero ────────────────────────────────────
   hero: {
-    height: 280,
+    height: 196,
     justifyContent: 'space-between',
     zIndex: 5,
   },
