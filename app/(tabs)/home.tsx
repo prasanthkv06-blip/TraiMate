@@ -23,6 +23,7 @@ import { SAMPLE_TRIPS } from '../../src/constants/sampleData';
 import { fetchTrips, type TripIndexEntry } from '../../src/services/tripService';
 
 const USER_NAME_KEY = '@traimate_user_name';
+const AVATAR_EMOJI_KEY = '@traimate_avatar_emoji';
 
 function getGreeting(): string {
   const hour = new Date().getHours();
@@ -98,6 +99,7 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [userName, setUserName] = useState('');
+  const [avatarEmoji, setAvatarEmoji] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [realTrips, setRealTrips] = useState<RealTrip[]>([]);
 
@@ -134,6 +136,9 @@ export default function HomeScreen() {
   useEffect(() => {
     AsyncStorage.getItem(USER_NAME_KEY).then((name) => {
       if (name) setUserName(name);
+    });
+    AsyncStorage.getItem(AVATAR_EMOJI_KEY).then((emoji) => {
+      if (emoji) setAvatarEmoji(emoji);
     });
 
     loadRealTrips();
@@ -180,6 +185,12 @@ export default function HomeScreen() {
   useFocusEffect(
     useCallback(() => {
       loadRealTrips();
+      AsyncStorage.getItem(USER_NAME_KEY).then((name) => {
+        if (name) setUserName(name);
+      });
+      AsyncStorage.getItem(AVATAR_EMOJI_KEY).then((emoji) => {
+        setAvatarEmoji(emoji);
+      });
     }, [loadRealTrips])
   );
 
@@ -257,14 +268,30 @@ export default function HomeScreen() {
               </Animated.View>
             </View>
           </View>
-          <Pressable
-            style={styles.notifButton}
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push('/notifications'); }}
-            hitSlop={12}
-          >
-            <Ionicons name="notifications-outline" size={24} color={Colors.text} />
-            <View style={styles.notifDot} />
-          </Pressable>
+          <View style={styles.headerActions}>
+            <Pressable
+              style={styles.notifButton}
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push('/notifications'); }}
+              hitSlop={12}
+            >
+              <Ionicons name="notifications-outline" size={24} color={Colors.text} />
+              <View style={styles.notifDot} />
+            </Pressable>
+            <Pressable
+              style={styles.profileButton}
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push('/(tabs)/profile'); }}
+              hitSlop={12}
+              accessibilityLabel="Profile & Settings"
+            >
+              {avatarEmoji ? (
+                <Text style={styles.profileEmoji}>{avatarEmoji}</Text>
+              ) : (
+                <Text style={styles.profileInitial}>
+                  {(userName || 'T').charAt(0).toUpperCase()}
+                </Text>
+              )}
+            </Pressable>
+          </View>
         </Animated.View>
 
         {/* Search bar */}
@@ -505,6 +532,11 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.xxl,
     color: Colors.text,
   },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
   notifButton: {
     position: 'relative',
     width: 44,
@@ -514,6 +546,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     ...Shadows.card,
+  },
+  profileButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Shadows.card,
+  },
+  profileEmoji: {
+    fontSize: 22,
+  },
+  profileInitial: {
+    fontFamily: Fonts.heading,
+    fontSize: FontSizes.lg,
+    color: Colors.white,
   },
   notifDot: {
     position: 'absolute',
