@@ -6,95 +6,99 @@ import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Fonts } from '../constants/theme';
 
+// Tab order: Home, Explore, [+ center], Profile
+// The "create" route is a dummy tab — its press opens the create-trip modal.
 const TAB_ICONS: Record<string, { default: keyof typeof Ionicons.glyphMap; active: keyof typeof Ionicons.glyphMap; label: string }> = {
   home: { default: 'home-outline', active: 'home', label: 'Home' },
-  explore: { default: 'compass-outline', active: 'compass', label: 'Discover' },
-  create: { default: 'add', active: 'add', label: 'New Trip' },
-  profile: { default: 'person-outline', active: 'person', label: 'Profile' },
+  explore: { default: 'compass-outline', active: 'compass', label: 'Explore' },
+  create: { default: 'add', active: 'add', label: '' },
+  trips: { default: 'briefcase-outline', active: 'briefcase', label: 'Trips' },
+  profile: { default: 'person-outline', active: 'person', label: 'Me' },
 };
 
 export default function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const router = useRouter();
 
+  // Separate left tabs, center button, right tabs for balanced layout
+  const leftTabs = ['home', 'explore'];
+  const rightTabs = ['trips', 'profile'];
+
+  const renderTab = (routeName: string) => {
+    const routeIndex = state.routes.findIndex(r => r.name === routeName);
+    if (routeIndex === -1) return null;
+    const route = state.routes[routeIndex];
+    const { options } = descriptors[route.key];
+    const isFocused = state.index === routeIndex;
+    const iconInfo = TAB_ICONS[routeName];
+    if (!iconInfo) return null;
+
+    return (
+      <Pressable
+        key={route.key}
+        onPress={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          const event = navigation.emit({
+            type: 'tabPress',
+            target: route.key,
+            canPreventDefault: true,
+          });
+          if (!isFocused && !event.defaultPrevented) {
+            navigation.navigate(route.name);
+          }
+        }}
+        style={styles.tab}
+        accessibilityRole="button"
+        accessibilityState={isFocused ? { selected: true } : {}}
+        accessibilityLabel={options.tabBarAccessibilityLabel}
+      >
+        <Ionicons
+          name={isFocused ? iconInfo.active : iconInfo.default}
+          size={22}
+          color={isFocused ? Colors.accent : Colors.textMuted}
+        />
+        <Text style={[styles.tabLabel, isFocused && styles.tabLabelActive]}>
+          {iconInfo.label}
+        </Text>
+        {isFocused && <View style={styles.activeIndicator} />}
+      </Pressable>
+    );
+  };
+
   return (
     <View style={styles.wrapper}>
       <View style={styles.container}>
         <View style={styles.tabRow}>
-          {state.routes.map((route, index) => {
-            // Skip routes not in our tab configuration (e.g. hidden home tab)
-            if (!TAB_ICONS[route.name]) return null;
+          {/* Left tabs */}
+          <View style={styles.tabGroup}>
+            {leftTabs.map(renderTab)}
+          </View>
 
-            const { options } = descriptors[route.key];
-            const isFocused = state.index === index;
-            const isCreate = route.name === 'create';
-            const iconInfo = TAB_ICONS[route.name];
+          {/* Center create button */}
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              router.push('/create-trip');
+            }}
+            style={({ pressed }) => [
+              styles.createButtonWrapper,
+              pressed && styles.createButtonPressed,
+            ]}
+          >
+            <LinearGradient
+              colors={['#5E8A5A', '#3D6B39']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.createButtonGradient}
+            >
+              <Ionicons name="add" size={28} color={Colors.white} />
+            </LinearGradient>
+            <Text style={styles.createLabel}>Let's go</Text>
+          </Pressable>
 
-            const onPress = () => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              const event = navigation.emit({
-                type: 'tabPress',
-                target: route.key,
-                canPreventDefault: true,
-              });
-              if (!isFocused && !event.defaultPrevented) {
-                navigation.navigate(route.name);
-              }
-            };
-
-            // Centered elevated create button
-            if (isCreate) {
-              return (
-                <Pressable
-                  key={route.key}
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                    router.push('/create-trip');
-                  }}
-                  style={({ pressed }) => [
-                    styles.createButtonWrapper,
-                    pressed && styles.createButtonPressed,
-                  ]}
-                >
-                  <LinearGradient
-                    colors={['#5E8A5A', '#3D6B39']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.createButtonGradient}
-                  >
-                    <Ionicons name="add" size={28} color={Colors.white} />
-                  </LinearGradient>
-                  <Text style={styles.createLabel}>New Trip</Text>
-                </Pressable>
-              );
-            }
-
-            // Regular tab (Discover / Profile)
-            return (
-              <Pressable
-                key={route.key}
-                onPress={onPress}
-                style={styles.tab}
-                accessibilityRole="button"
-                accessibilityState={isFocused ? { selected: true } : {}}
-                accessibilityLabel={options.tabBarAccessibilityLabel}
-              >
-                <Ionicons
-                  name={isFocused ? iconInfo.active : iconInfo.default}
-                  size={22}
-                  color={isFocused ? Colors.accent : Colors.textMuted}
-                />
-                <Text
-                  style={[
-                    styles.tabLabel,
-                    isFocused && styles.tabLabelActive,
-                  ]}
-                >
-                  {iconInfo.label}
-                </Text>
-                {isFocused && <View style={styles.activeIndicator} />}
-              </Pressable>
-            );
-          })}
+          {/* Right tabs */}
+          <View style={styles.tabGroup}>
+            {rightTabs.map(renderTab)}
+          </View>
         </View>
       </View>
     </View>
@@ -113,8 +117,8 @@ const styles = StyleSheet.create({
   },
   container: {
     width: '100%',
-    maxWidth: 360,
-    borderRadius: 24,
+    maxWidth: 380,
+    borderRadius: 28,
     backgroundColor: Colors.white,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: Colors.border,
@@ -127,15 +131,21 @@ const styles = StyleSheet.create({
   tabRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-around',
-    height: 60,
-    paddingHorizontal: 8,
+    justifyContent: 'space-between',
+    height: 62,
+    paddingHorizontal: 12,
+  },
+  tabGroup: {
+    flexDirection: 'row',
+    flex: 1,
+    justifyContent: 'space-evenly',
+    alignItems: 'center',
   },
   tab: {
-    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 6,
+    paddingHorizontal: 16,
     position: 'relative',
     gap: 3,
   },
@@ -159,16 +169,23 @@ const styles = StyleSheet.create({
   createButtonWrapper: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: -28,
-    paddingBottom: 2,
+    marginTop: -30,
+    marginHorizontal: 8,
+    gap: 3,
+  },
+  createLabel: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: 9,
+    color: Colors.textMuted,
+    marginTop: 1,
   },
   createButtonPressed: {
     transform: [{ scale: 0.92 }],
   },
   createButtonGradient: {
-    width: 54,
-    height: 54,
-    borderRadius: 18,
+    width: 56,
+    height: 56,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -177,11 +194,5 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 10,
-  },
-  createLabel: {
-    fontFamily: Fonts.bodyMedium,
-    fontSize: 10,
-    color: Colors.textMuted,
-    marginTop: 4,
   },
 });

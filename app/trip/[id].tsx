@@ -16,6 +16,7 @@ import {
   Platform,
   UIManager,
   Linking,
+  ActionSheetIOS,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -690,7 +691,44 @@ export default function TripDetailScreen() {
           <Pressable onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.canGoBack() ? router.back() : router.push('/'); }} style={styles.backButton} hitSlop={20}>
             <Ionicons name="arrow-back" size={22} color={Colors.white} />
           </Pressable>
-          <Pressable style={styles.moreButton}>
+          <Pressable
+            style={styles.moreButton}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              const options = ['Share Trip', 'Edit Trip Name', 'Duplicate Trip', 'Export Itinerary', 'Delete Trip', 'Cancel'];
+              const destructiveIndex = 4;
+              const cancelIndex = 5;
+
+              if (Platform.OS === 'ios') {
+                ActionSheetIOS.showActionSheetWithOptions(
+                  { options, cancelButtonIndex: cancelIndex, destructiveButtonIndex: destructiveIndex },
+                  (buttonIndex) => {
+                    if (buttonIndex === 0) {
+                      Share.share({ message: `Check out my trip to ${trip.destination}! ✈️` });
+                    } else if (buttonIndex === 1) {
+                      Alert.alert('Edit Trip Name', 'Coming Soon');
+                    } else if (buttonIndex === 2) {
+                      Alert.alert('Duplicate Trip', 'Coming Soon');
+                    } else if (buttonIndex === 3) {
+                      Alert.alert('Export Itinerary', 'Coming Soon');
+                    } else if (buttonIndex === 4) {
+                      Alert.alert('Delete Trip', 'Coming Soon');
+                    }
+                  },
+                );
+              } else {
+                Alert.alert('Trip Options', undefined, [
+                  { text: 'Share Trip', onPress: () => Share.share({ message: `Check out my trip to ${trip.destination}! ✈️` }) },
+                  { text: 'Edit Trip Name', onPress: () => Alert.alert('Edit Trip Name', 'Coming Soon') },
+                  { text: 'Duplicate Trip', onPress: () => Alert.alert('Duplicate Trip', 'Coming Soon') },
+                  { text: 'Export Itinerary', onPress: () => Alert.alert('Export Itinerary', 'Coming Soon') },
+                  { text: 'Delete Trip', style: 'destructive', onPress: () => Alert.alert('Delete Trip', 'Coming Soon') },
+                  { text: 'Cancel', style: 'cancel' },
+                ]);
+              }
+            }}
+            hitSlop={20}
+          >
             <Ionicons name="ellipsis-horizontal" size={22} color={Colors.white} />
           </Pressable>
         </View>
