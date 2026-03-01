@@ -24,6 +24,7 @@ import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
+import * as Notifications from 'expo-notifications';
 import { Colors, Fonts, FontSizes, Spacing, BorderRadius, Shadows } from '../../src/constants/theme';
 import AIGuide from '../../src/components/AIGuide';
 import { SAMPLE_TRIPS } from '../../src/constants/sampleData';
@@ -252,6 +253,8 @@ export default function TripDetailScreen() {
   const [formNotes, setFormNotes] = useState('');
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [showDurationPicker, setShowDurationPicker] = useState(false);
+  const [showTripMenu, setShowTripMenu] = useState(false);
+  const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(new Set());
 
   // ── Form state for add day ─────────────────────────────────────────────
   const [newDayTitle, setNewDayTitle] = useState('');
@@ -323,6 +326,65 @@ export default function TripDetailScreen() {
     }
   }, [itinerary]);
 
+  // ── Schedule local push notifications ────────────────────────────────
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    if (!params.startDate || !params.endDate || params.startDate === 'TBD' || params.endDate === 'TBD') return;
+
+    const scheduleTripNotifications = async () => {
+      try {
+        const { status } = await Notifications.requestPermissionsAsync();
+        if (status !== 'granted') return;
+
+        await Notifications.cancelAllScheduledNotificationsAsync();
+
+        const start = new Date(params.startDate!);
+        const end = new Date(params.endDate!);
+        const now = new Date();
+        const tripName = trip.name;
+        const destination = cleanDestination(params.destination || trip.destination);
+
+        // 1 day before start
+        const dayBefore = new Date(start);
+        dayBefore.setDate(dayBefore.getDate() - 1);
+        dayBefore.setHours(18, 0, 0, 0);
+        if (dayBefore > now) {
+          await Notifications.scheduleNotificationAsync({
+            content: { title: '✈️ Trip tomorrow!', body: `${tripName} to ${destination} starts tomorrow!` },
+            trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: dayBefore },
+          });
+        }
+
+        // Morning of start
+        const morningOf = new Date(start);
+        morningOf.setHours(8, 0, 0, 0);
+        if (morningOf > now) {
+          await Notifications.scheduleNotificationAsync({
+            content: { title: '🎉 It\'s go time!', body: `Your ${tripName} adventure begins today!` },
+            trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: morningOf },
+          });
+        }
+
+        // 1 day after end
+        const dayAfterEnd = new Date(end);
+        dayAfterEnd.setDate(dayAfterEnd.getDate() + 1);
+        dayAfterEnd.setHours(10, 0, 0, 0);
+        if (dayAfterEnd > now) {
+          await Notifications.scheduleNotificationAsync({
+            content: { title: '📸 How was it?', body: `${tripName} just ended — time to recap!` },
+            trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: dayAfterEnd },
+          });
+        }
+
+        console.log('[TraiMate] Trip notifications scheduled');
+      } catch (e) {
+        console.log('[TraiMate] Could not schedule notifications:', e);
+      }
+    };
+
+    scheduleTripNotifications();
+  }, [params.startDate, params.endDate]);
+
   // ── Phase switching ────────────────────────────────────────────────────
   const switchPhase = (phase: Phase, index: number) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -351,6 +413,31 @@ export default function TripDetailScreen() {
     if (channel === 'native') {
       try { await Share.share({ message: msg, title: trip.name }); } catch {}
     }
+  };
+
+  // ── Dismiss alert helper ──────────────────────────────────────────────
+  const dismissAlert = useCallback((id: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setDismissedAlerts(prev => new Set(prev).add(id));
+  }, []);
+
+  // ── Alert banner renderer ──────────────────────────────────────────────
+  const renderAlertBanner = (id: string, emoji: string, text: string, borderColor: string, bgColor: string) => {
+    if (dismissedAlerts.has(id)) return null;
+    return (
+      <View key={id} style={{
+        flexDirection: 'row', alignItems: 'center', gap: 10,
+        backgroundColor: bgColor,
+        borderLeftWidth: 3, borderLeftColor: borderColor,
+        borderRadius: BorderRadius.md, padding: Spacing.md, marginBottom: Spacing.sm,
+      }}>
+        <Text style={{ fontSize: 16 }}>{emoji}</Text>
+        <Text style={{ flex: 1, fontFamily: Fonts.body, fontSize: FontSizes.sm, color: Colors.text }}>{text}</Text>
+        <Pressable onPress={() => dismissAlert(id)} hitSlop={10}>
+          <Text style={{ fontSize: 18, color: Colors.textMuted, fontWeight: '600' }}>×</Text>
+        </Pressable>
+      </View>
+    );
   };
 
   // ═════════════════════════════════════════════════════════════════════════
@@ -691,47 +778,58 @@ export default function TripDetailScreen() {
           <Pressable onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.canGoBack() ? router.back() : router.push('/'); }} style={styles.backButton} hitSlop={20}>
             <Ionicons name="arrow-back" size={22} color={Colors.white} />
           </Pressable>
-          <Pressable
-            style={styles.moreButton}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              const options = ['Share Trip', 'Edit Trip Name', 'Duplicate Trip', 'Export Itinerary', 'Delete Trip', 'Cancel'];
-              const destructiveIndex = 4;
-              const cancelIndex = 5;
-
-              if (Platform.OS === 'ios') {
-                ActionSheetIOS.showActionSheetWithOptions(
-                  { options, cancelButtonIndex: cancelIndex, destructiveButtonIndex: destructiveIndex },
-                  (buttonIndex) => {
-                    if (buttonIndex === 0) {
-                      Share.share({ message: `Check out my trip to ${trip.destination}! ✈️` });
-                    } else if (buttonIndex === 1) {
-                      Alert.alert('Edit Trip Name', 'Coming Soon');
-                    } else if (buttonIndex === 2) {
-                      Alert.alert('Duplicate Trip', 'Coming Soon');
-                    } else if (buttonIndex === 3) {
-                      Alert.alert('Export Itinerary', 'Coming Soon');
-                    } else if (buttonIndex === 4) {
-                      Alert.alert('Delete Trip', 'Coming Soon');
-                    }
-                  },
-                );
-              } else {
-                Alert.alert('Trip Options', undefined, [
-                  { text: 'Share Trip', onPress: () => Share.share({ message: `Check out my trip to ${trip.destination}! ✈️` }) },
-                  { text: 'Edit Trip Name', onPress: () => Alert.alert('Edit Trip Name', 'Coming Soon') },
-                  { text: 'Duplicate Trip', onPress: () => Alert.alert('Duplicate Trip', 'Coming Soon') },
-                  { text: 'Export Itinerary', onPress: () => Alert.alert('Export Itinerary', 'Coming Soon') },
-                  { text: 'Delete Trip', style: 'destructive', onPress: () => Alert.alert('Delete Trip', 'Coming Soon') },
-                  { text: 'Cancel', style: 'cancel' },
-                ]);
-              }
-            }}
-            hitSlop={20}
-          >
-            <Ionicons name="ellipsis-horizontal" size={22} color={Colors.white} />
-          </Pressable>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            {/* Notification bell */}
+            <Pressable
+              style={styles.backButton}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push('/notifications' as any);
+              }}
+              hitSlop={20}
+            >
+              <Ionicons name="notifications-outline" size={20} color={Colors.white} />
+              <View style={styles.notifDot} />
+            </Pressable>
+            {/* Three dots with badge */}
+            <Pressable
+              style={styles.moreButton}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setShowTripMenu(prev => !prev);
+              }}
+              hitSlop={20}
+            >
+              <Ionicons name="ellipsis-horizontal" size={22} color={Colors.white} />
+              <View style={styles.notifDot} />
+            </Pressable>
+          </View>
         </View>
+
+        {/* Trip options dropdown menu */}
+        {showTripMenu && (
+          <Pressable style={styles.tripMenuOverlay} onPress={() => setShowTripMenu(false)}>
+            <View style={styles.tripMenuDropdown}>
+              {[
+                { label: 'Share Trip', icon: 'share-outline' as const, destructive: false, onPress: () => { setShowTripMenu(false); Share.share({ message: `Check out my trip to ${trip.destination}! ✈️` }); } },
+                { label: 'Edit Trip Name', icon: 'create-outline' as const, destructive: false, onPress: () => { setShowTripMenu(false); Alert.alert('Edit Trip Name', 'Coming Soon'); } },
+                { label: 'Duplicate Trip', icon: 'copy-outline' as const, destructive: false, onPress: () => { setShowTripMenu(false); Alert.alert('Duplicate Trip', 'Coming Soon'); } },
+                { label: 'Export Itinerary', icon: 'download-outline' as const, destructive: false, onPress: () => { setShowTripMenu(false); Alert.alert('Export Itinerary', 'Coming Soon'); } },
+                { label: 'Delete Trip', icon: 'trash-outline' as const, destructive: true, onPress: () => { setShowTripMenu(false); Alert.alert('Delete Trip', 'Coming Soon'); } },
+              ].map((item, i) => (
+                <Pressable
+                  key={item.label}
+                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); item.onPress(); }}
+                  style={[styles.tripMenuItem, i > 0 && styles.tripMenuItemBorder]}
+                >
+                  <Ionicons name={item.icon} size={18} color={item.destructive ? Colors.error : Colors.text} />
+                  <Text style={[styles.tripMenuLabel, item.destructive && { color: Colors.error }]}>{item.label}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </Pressable>
+        )}
+
         <View style={styles.heroContent}>
           <Text style={styles.heroDestination}>
             {trip.emoji} {trip.destination}
@@ -837,6 +935,27 @@ export default function TripDetailScreen() {
                 </View>
               </View>
             )}
+
+            {/* ── Plan Phase Alerts ──────────────────────── */}
+            {(() => {
+              const alerts: React.ReactNode[] = [];
+              // Countdown alert — trip starts within 14 days
+              if (params.startDate && params.startDate !== 'TBD') {
+                const daysUntil = Math.ceil((new Date(params.startDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                if (daysUntil > 0 && daysUntil <= 14) {
+                  alerts.push(renderAlertBanner('plan-countdown', '⏰', `Trip starts in ${daysUntil} day${daysUntil === 1 ? '' : 's'} — finish your plan!`, '#E67E22', 'rgba(230,126,34,0.1)'));
+                }
+              }
+              // Empty itinerary alert
+              if (itineraryStatus === 'empty') {
+                alerts.push(renderAlertBanner('plan-empty', '📝', 'No itinerary yet — tap AI Plan to get started', Colors.accent, `${Colors.accent}18`));
+              }
+              // Solo + no invites
+              if (isSoloTrip && squad.length <= 1) {
+                alerts.push(renderAlertBanner('plan-solo', '👥', 'Going solo? Invite friends from the squad bar above', '#4A8BA8', 'rgba(74,139,168,0.1)'));
+              }
+              return alerts.length > 0 ? <View style={{ marginBottom: Spacing.sm }}>{alerts}</View> : null;
+            })()}
 
             {/* ═══════════════════════════════════════════════
                 EMPTY STATE
@@ -1246,6 +1365,12 @@ export default function TripDetailScreen() {
                 </View>
               )}
             </LinearGradient>
+
+            {/* ── Live Phase Alerts ──────────────────────── */}
+            <View style={{ marginTop: Spacing.sm }}>
+              {renderAlertBanner('live-day', '📍', `Day ${currentDay} of ${totalDays} — make it count!`, '#5E8A5A', 'rgba(94,138,90,0.1)')}
+              {renderAlertBanner('live-packing', '🎒', 'Don\'t forget to check your packing list', '#9B59B6', 'rgba(155,89,182,0.1)')}
+            </View>
 
             {/* ── B) Today's Plan Timeline ────────────────── */}
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.sm }}>
@@ -2001,6 +2126,12 @@ export default function TripDetailScreen() {
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.scrollContent}
           >
+            {/* ── Recap Phase Alerts ─────────────────────── */}
+            <View style={{ marginBottom: Spacing.sm }}>
+              {renderAlertBanner('recap-complete', '🎉', 'Trip complete! Save your favorite memories', '#FFC947', 'rgba(255,201,71,0.1)')}
+              {renderAlertBanner('recap-settle', '💳', 'Don\'t forget to settle expenses with your crew', '#5E8A5A', 'rgba(94,138,90,0.1)')}
+            </View>
+
             {/* Trip-Specific Hero — Compact */}
             <View style={{ borderRadius: BorderRadius.lg, overflow: 'hidden', marginBottom: Spacing.md, ...Shadows.cardHover }}>
               <LinearGradient
@@ -2525,6 +2656,56 @@ const styles = StyleSheet.create({
     fontSize: 22,
     color: Colors.white,
     fontWeight: '700',
+  },
+  notifDot: {
+    position: 'absolute' as const,
+    top: -1,
+    right: -1,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: Colors.error,
+    borderWidth: 1,
+    borderColor: Colors.white,
+  },
+  tripMenuOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 100,
+  },
+  tripMenuDropdown: {
+    position: 'absolute',
+    top: 52,
+    right: Spacing.md,
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.md,
+    paddingVertical: 4,
+    minWidth: 200,
+    shadowColor: '#2C2520',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+    zIndex: 101,
+  },
+  tripMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    paddingVertical: 12,
+    paddingHorizontal: Spacing.md,
+  },
+  tripMenuItemBorder: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: Colors.border,
+  },
+  tripMenuLabel: {
+    fontFamily: Fonts.bodyMedium,
+    fontSize: FontSizes.sm,
+    color: Colors.text,
   },
   heroContent: {
     paddingHorizontal: Spacing.xl,
