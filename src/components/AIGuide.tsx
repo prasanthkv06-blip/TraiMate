@@ -27,6 +27,7 @@ interface Message {
 }
 
 import { AI_GUIDE_DB, AI_SUGGESTIONS_DB } from '../constants/aiData';
+import { chatWithGuide, type ChatMessage } from '../lib/gemini';
 
 const SUGGESTIONS = [
   '🍜 Best local restaurants nearby',
@@ -132,6 +133,7 @@ export default function AIGuide({ destination }: AIGuideProps) {
   ]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const scrollRef = useRef<ScrollView>(null);
 
   const fabScale = useRef(new Animated.Value(1)).current;
@@ -159,7 +161,7 @@ export default function AIGuide({ destination }: AIGuideProps) {
     setIsOpen(false);
   };
 
-  const handleSend = (text?: string) => {
+  const handleSend = async (text?: string) => {
     const messageText = text || input.trim();
     if (!messageText) return;
 
@@ -175,8 +177,22 @@ export default function AIGuide({ destination }: AIGuideProps) {
     setInput('');
     setIsTyping(true);
 
-    // Simulate AI response
-    setTimeout(() => {
+    try {
+      const response = await chatWithGuide(messageText, destination || 'your destination', chatHistory);
+      setChatHistory(prev => [
+        ...prev,
+        { role: 'user', text: messageText },
+        { role: 'model', text: response },
+      ]);
+      const aiMsg: Message = {
+        id: (Date.now() + 1).toString(),
+        text: response,
+        isUser: false,
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, aiMsg]);
+    } catch {
+      // Gemini failed — fall back to keyword matching
       const aiMsg: Message = {
         id: (Date.now() + 1).toString(),
         text: getAIResponse(messageText, destination),
@@ -184,8 +200,9 @@ export default function AIGuide({ destination }: AIGuideProps) {
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, aiMsg]);
+    } finally {
       setIsTyping(false);
-    }, 1200);
+    }
   };
 
   return (

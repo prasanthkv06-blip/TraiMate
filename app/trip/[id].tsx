@@ -31,6 +31,7 @@ import { SAMPLE_TRIPS } from '../../src/constants/sampleData';
 import { CATEGORY_ICONS, CATEGORY_COLORS, CATEGORY_IONICONS, type AISuggestion } from '../../src/constants/aiData';
 import {
   generateItinerary,
+  generateItineraryAsync,
   createEmptyDays,
   createNewDay,
   createNewItem,
@@ -50,6 +51,7 @@ import {
   getSimulatedWeather,
   getPreTripAlerts,
   getTrendingSuggestions,
+  getTrendingSuggestionsAsync,
   generateAIRescheduleSuggestions,
   type AIRescheduleSuggestion,
 } from '../../src/utils/liveHelpers';
@@ -239,6 +241,8 @@ export default function TripDetailScreen() {
   const [expandedTips, setExpandedTips] = useState<Set<string>>(new Set());
   const [dismissedSuggestions, setDismissedSuggestions] = useState<Set<number>>(new Set());
   const [trendingDetail, setTrendingDetail] = useState<AISuggestion | null>(null);
+  const [asyncTrending, setAsyncTrending] = useState<AISuggestion[]>([]);
+  const [trendingLoading, setTrendingLoading] = useState(false);
   const [liveEditItem, setLiveEditItem] = useState<ItineraryItem | null>(null);
   const [liveEditTime, setLiveEditTime] = useState('');
   const [liveEditTitle, setLiveEditTitle] = useState('');
@@ -325,6 +329,20 @@ export default function TripDetailScreen() {
       tripCtx.setItinerary(itinerary);
     }
   }, [itinerary]);
+
+  // ── Load async trending suggestions when live tab is active ──────────
+  useEffect(() => {
+    if (activePhase !== 'live') return;
+    const destName = cleanDestination(params.destination || trip.destination);
+    let cancelled = false;
+    setTrendingLoading(true);
+    getTrendingSuggestionsAsync(destName).then(results => {
+      if (!cancelled && results.length > 0) setAsyncTrending(results);
+    }).finally(() => {
+      if (!cancelled) setTrendingLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [activePhase, params.destination, trip.destination]);
 
   // ── Schedule local push notifications ────────────────────────────────
   useEffect(() => {
@@ -482,15 +500,17 @@ export default function TripDetailScreen() {
       timeoutIdsRef.current.push(tid);
     });
 
-    // Generate actual itinerary after animation
-    const finalTid = setTimeout(() => {
-      const generated = generateItinerary({
+    // Generate actual itinerary after animation (async with fallback)
+    const finalTid = setTimeout(async () => {
+      const genParams = {
         destination: params.destination || trip.destination,
         startDate: params.startDate || '',
         endDate: params.endDate || '',
         styles: tripStyles,
         tripType: (params.tripType as 'solo' | 'group') || 'solo',
-      });
+      };
+
+      const generated = await generateItineraryAsync(genParams);
 
       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
       setItinerary(generated);
@@ -558,14 +578,16 @@ export default function TripDetailScreen() {
               timeoutIdsRef.current.push(tid);
             });
 
-            const finalTid = setTimeout(() => {
-              const generated = generateItinerary({
+            const finalTid = setTimeout(async () => {
+              const genParams = {
                 destination: params.destination || trip.destination,
                 startDate: params.startDate || '',
                 endDate: params.endDate || '',
                 styles: tripStyles,
                 tripType: (params.tripType as 'solo' | 'group') || 'solo',
-              });
+              };
+
+              const generated = await generateItineraryAsync(genParams);
 
               LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
               setItinerary(generated);
@@ -1295,7 +1317,8 @@ export default function TripDetailScreen() {
           const todayPlan = getTodayItinerary(itinerary, currentDay);
           const weather = getSimulatedWeather(destName);
           const preTripAlerts = getPreTripAlerts(destName);
-          const trending = getTrendingSuggestions(destName);
+          const syncTrending = getTrendingSuggestions(destName);
+          const trending = asyncTrending.length > 0 ? asyncTrending : syncTrending;
           const aiSuggestions = generateAIRescheduleSuggestions(todayPlan?.items || [], weather)
             .filter(s => !dismissedSuggestions.has(s.id));
 
@@ -1680,13 +1703,13 @@ export default function TripDetailScreen() {
             )}
 
             {/* ── D) Trending Nearby ────────────────────────── */}
-            {trending.length > 0 && (
+            {(trending.length > 0 || trendingLoading) && (
               <>
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.sm }}>
                   <Text style={styles.liveSectionTitle}>TRENDING NEARBY</Text>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                     <Ionicons name="flame" size={14} color="#EF4444" />
-                    <Text style={{ fontFamily: Fonts.body, fontSize: FontSizes.xs, color: Colors.textMuted }}>{trending.length} spots</Text>
+                    <Text style={{ fontFamily: Fonts.body, fontSize: FontSizes.xs, color: Colors.textMuted }}>{trendingLoading ? 'Loading...' : `${trending.length} spots`}</Text>
                   </View>
                 </View>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: Spacing.xl }}>

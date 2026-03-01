@@ -4,6 +4,7 @@
  */
 
 import { ITINERARY_DB, Activity, CATEGORY_ICONS } from '../constants/aiData';
+import { generateItineraryFromAI } from '../lib/gemini';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 export type ActivityType =
@@ -211,6 +212,43 @@ export function createEmptyDays(
     });
   }
   return days;
+}
+
+// ─── Async generator (Gemini AI, falls back to sync) ──────────────────
+export async function generateItineraryAsync(params: GenerateParams): Promise<ItineraryDay[]> {
+  const tripDuration = getTripDuration(params.startDate, params.endDate);
+  const startDate = params.startDate ? new Date(params.startDate) : null;
+
+  try {
+    const aiDays = await generateItineraryFromAI(
+      params.destination,
+      tripDuration,
+      params.styles,
+      params.tripType,
+    );
+
+    const result: ItineraryDay[] = [];
+    for (let i = 0; i < tripDuration; i++) {
+      const dayNum = i + 1;
+      const activities = aiDays[dayNum] || [];
+      const dayDate = startDate
+        ? new Date(startDate.getTime() + i * 24 * 60 * 60 * 1000)
+        : null;
+
+      result.push({
+        id: genId(),
+        dayNumber: dayNum,
+        title: getDayTitle(i, tripDuration),
+        date: dayDate ? dayDate.toISOString() : undefined,
+        items: activities.map(convertActivity),
+      });
+    }
+
+    return result.length > 0 ? result : generateItinerary(params);
+  } catch {
+    // Gemini failed — fall back to sync generator
+    return generateItinerary(params);
+  }
 }
 
 // ─── Create a single new empty day ─────────────────────────────────────────

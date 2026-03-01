@@ -1,5 +1,7 @@
 import { AI_GUIDE_DB, AI_SUGGESTIONS_DB, type AISuggestion } from '../constants/aiData';
 import type { ItineraryDay, ItineraryItem } from './itineraryGenerator';
+import { searchPlaces } from '../lib/googlePlaces';
+import { generateAITips } from '../lib/gemini';
 
 // Check if trip is currently active
 export function isTripLive(startDate?: string, endDate?: string): boolean {
@@ -92,6 +94,30 @@ export function getTrendingSuggestions(destination: string): AISuggestion[] {
     if (key.includes(k) || k.includes(key)) return v;
   }
   return [];
+}
+
+// ── Async trending suggestions (Places API + Gemini tips, falls back to hardcoded) ──
+export async function getTrendingSuggestionsAsync(destination: string): Promise<AISuggestion[]> {
+  try {
+    const results = await searchPlaces(destination, 'all');
+    if (results.length === 0) return getTrendingSuggestions(destination);
+
+    // Try to enrich with AI tips
+    try {
+      const placeNames = results.map(r => r.tl);
+      const tips = await generateAITips(placeNames, destination);
+      return results.map(r => ({
+        ...r,
+        ai: tips[r.tl] || r.ai || '',
+      }));
+    } catch {
+      // Tips failed, return places without AI tips
+      return results;
+    }
+  } catch {
+    // API failed entirely — fall back to hardcoded
+    return getTrendingSuggestions(destination);
+  }
 }
 
 // AI reschedule suggestion type

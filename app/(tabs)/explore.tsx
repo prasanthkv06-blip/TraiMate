@@ -9,12 +9,15 @@ import {
   Alert,
   Animated,
   Dimensions,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { Colors, Fonts, FontSizes, Spacing, BorderRadius, Shadows } from '../../src/constants/theme';
+import { usePlaceAutocomplete } from '../../src/hooks/useGooglePlaces';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -74,7 +77,9 @@ const TRENDING_TAGS = [
 
 export default function ExploreScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
+  const { results: autocompleteResults, isLoading: autocompleteLoading } = usePlaceAutocomplete(searchQuery);
 
   // Staggered entrance animations
   const headerAnim = useRef(new Animated.Value(0)).current;
@@ -216,6 +221,41 @@ export default function ExploreScreen() {
             )}
           </View>
         </Animated.View>
+
+        {/* ── Autocomplete Results ─────────────────────── */}
+        {searchQuery.trim().length >= 2 && (autocompleteResults.length > 0 || autocompleteLoading) && (
+          <Animated.View style={[styles.autocompleteContainer, { opacity: searchAnim }]}>
+            {autocompleteLoading && autocompleteResults.length === 0 && (
+              <View style={styles.autocompleteLoading}>
+                <ActivityIndicator size="small" color={Colors.accent} />
+                <Text style={styles.autocompleteLoadingText}>Searching destinations...</Text>
+              </View>
+            )}
+            {autocompleteResults.map((result) => (
+              <Pressable
+                key={result.placeId}
+                style={({ pressed }) => [styles.autocompleteItem, pressed && { backgroundColor: Colors.border }]}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setSearchQuery('');
+                  router.push({
+                    pathname: '/create-trip' as any,
+                    params: { prefill: result.fullText },
+                  });
+                }}
+              >
+                <Ionicons name="location-outline" size={18} color={Colors.accent} />
+                <View style={styles.autocompleteTextWrap}>
+                  <Text style={styles.autocompleteMain}>{result.mainText}</Text>
+                  {result.secondaryText ? (
+                    <Text style={styles.autocompleteSecondary}>{result.secondaryText}</Text>
+                  ) : null}
+                </View>
+                <Ionicons name="arrow-forward" size={16} color={Colors.textMuted} />
+              </Pressable>
+            ))}
+          </Animated.View>
+        )}
 
         {/* ── Popular Destinations ───────────────────── */}
         <Animated.View style={{ opacity: destinationsAnim, transform: [{ translateY: destinationsY }] }}>
@@ -596,5 +636,51 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.body,
     fontSize: FontSizes.sm,
     color: Colors.textMuted,
+  },
+
+  // Autocomplete
+  autocompleteContainer: {
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    overflow: 'hidden',
+    ...Shadows.card,
+  },
+  autocompleteLoading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: Spacing.md,
+    gap: Spacing.sm,
+  },
+  autocompleteLoadingText: {
+    fontFamily: Fonts.body,
+    fontSize: FontSizes.sm,
+    color: Colors.textMuted,
+  },
+  autocompleteItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 14,
+    gap: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  autocompleteTextWrap: {
+    flex: 1,
+  },
+  autocompleteMain: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: FontSizes.md,
+    color: Colors.text,
+  },
+  autocompleteSecondary: {
+    fontFamily: Fonts.body,
+    fontSize: FontSizes.xs,
+    color: Colors.textSecondary,
+    marginTop: 2,
   },
 });
