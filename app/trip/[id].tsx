@@ -26,6 +26,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import * as Notifications from 'expo-notifications';
+import * as Clipboard from 'expo-clipboard';
 import { Colors, Fonts, FontSizes, Spacing, BorderRadius, Shadows } from '../../src/constants/theme';
 import AIGuide from '../../src/components/AIGuide';
 import { SAMPLE_TRIPS } from '../../src/constants/sampleData';
@@ -526,9 +527,10 @@ export default function TripDetailScreen() {
   };
 
   // ── Invite helpers ─────────────────────────────────────────────────────
-  const inviteLink = `https://expo.dev/@prasanthkv06/TraiMate?invite=${inviteCode}`;
+  const inviteLink = `https://trailmate.app/join/${inviteCode}`;
 
-  const handleCopyLink = () => {
+  const handleCopyLink = async () => {
+    await Clipboard.setStringAsync(inviteLink);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setLinkCopied(true);
     setTimeout(() => setLinkCopied(false), 2500);
@@ -536,30 +538,15 @@ export default function TripDetailScreen() {
 
   const handleShare = async (channel: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const msg = `Yo! Join "${trip.name}" to ${trip.destination} on TrailMate 🌍\n\n${inviteLink}`;
-    switch (channel) {
-      case 'whatsapp':
-        Linking.openURL(`https://wa.me/?text=${encodeURIComponent(msg)}`).catch(() => {
-          Share.share({ message: msg, title: trip.name });
-        });
-        break;
-      case 'sms': {
-        const smsUrl = Platform.OS === 'ios'
-          ? `sms:&body=${encodeURIComponent(msg)}`
-          : `sms:?body=${encodeURIComponent(msg)}`;
-        Linking.openURL(smsUrl).catch(() => {
-          Share.share({ message: msg, title: trip.name });
-        });
-        break;
-      }
-      case 'email':
-        Linking.openURL(`mailto:?subject=${encodeURIComponent(`Join ${trip.name} on TrailMate`)}&body=${encodeURIComponent(msg)}`).catch(() => {
-          Share.share({ message: msg, title: trip.name });
-        });
-        break;
-      default:
-        try { await Share.share({ message: msg, title: trip.name }); } catch {}
-    }
+    const text = `Join my trip "${trip.name}" to ${trip.destination} on TrailMate!`;
+    const msg = `${text}\n\n${inviteLink}`;
+    try {
+      await Share.share({
+        message: msg,
+        title: `Join ${trip.name} on TrailMate`,
+        url: inviteLink,
+      });
+    } catch {}
   };
 
   // ── Dismiss alert helper ──────────────────────────────────────────────
