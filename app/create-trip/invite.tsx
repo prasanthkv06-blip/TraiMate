@@ -13,14 +13,23 @@ import {
   LayoutAnimation,
   Platform,
   UIManager,
+  Linking,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
+import * as Clipboard from 'expo-clipboard';
 import { Ionicons } from '@expo/vector-icons';
+import QRCode from 'react-native-qrcode-svg';
 import { Colors, Fonts, FontSizes, Spacing, BorderRadius, Shadows } from '../../src/constants/theme';
 import { createTrip } from '../../src/services/tripService';
+import {
+  createInvitation,
+  generateShareMessage,
+  generateWhatsAppUrl,
+  generateEmailUrl,
+} from '../../src/services/inviteService';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -84,61 +93,17 @@ function formatTripDate(isoStr?: string): string {
   }
 }
 
-// ─── QR Code Component (SVG-style pattern) ─────────────────────────────────
+// ─── QR Code Component (real scannable QR) ──────────────────────────────────
 function QRCodeDisplay({ code, size = 180 }: { code: string; size?: number }) {
-  // Generate a deterministic pattern from the code string
-  const cells = 11;
-  const cellSize = size / cells;
-  const pattern: boolean[][] = [];
-
-  let seed = 0;
-  for (const ch of code) seed += ch.charCodeAt(0);
-
-  for (let r = 0; r < cells; r++) {
-    pattern[r] = [];
-    for (let c = 0; c < cells; c++) {
-      // Fixed corner patterns (QR-like finder squares)
-      const isTopLeft = r < 3 && c < 3;
-      const isTopRight = r < 3 && c >= cells - 3;
-      const isBottomLeft = r >= cells - 3 && c < 3;
-      const isFinder = isTopLeft || isTopRight || isBottomLeft;
-
-      if (isFinder) {
-        const innerTL = r < 3 && c < 3 && r >= 1 && r <= 1 && c >= 1 && c <= 1;
-        const innerTR = r < 3 && c >= cells - 3 && r === 1 && c === cells - 2;
-        const innerBL = r >= cells - 3 && c < 3 && r === cells - 2 && c === 1;
-        pattern[r][c] = (r === 0 || r === 2 || c === 0 || c === 2) && isTopLeft
-          || (r === 0 || r === 2 || c === cells - 1 || c === cells - 3) && isTopRight
-          || (r === cells - 1 || r === cells - 3 || c === 0 || c === 2) && isBottomLeft
-          || innerTL || innerTR || innerBL;
-      } else {
-        // Pseudo-random data pattern
-        seed = (seed * 31 + r * 7 + c * 13) % 97;
-        pattern[r][c] = seed % 3 !== 0;
-      }
-    }
-  }
-
+  const deepLink = `traimate://join/${code}`;
   return (
-    <View style={[qrStyles.container, { width: size, height: size }]}>
-      <View style={qrStyles.outerBorder}>
-        {pattern.map((row, r) => (
-          <View key={r} style={{ flexDirection: 'row' }}>
-            {row.map((filled, c) => (
-              <View
-                key={c}
-                style={{
-                  width: cellSize - 1,
-                  height: cellSize - 1,
-                  backgroundColor: filled ? Colors.text : 'transparent',
-                  borderRadius: 2,
-                  margin: 0.5,
-                }}
-              />
-            ))}
-          </View>
-        ))}
-      </View>
+    <View style={[qrStyles.container, { width: size + 24, height: size + 24 }]}>
+      <QRCode
+        value={deepLink}
+        size={size}
+        color={Colors.text}
+        backgroundColor={Colors.white}
+      />
     </View>
   );
 }
@@ -315,31 +280,58 @@ export default function InviteScreen() {
   }, []);
 
   // ── Share actions ──────────────────────────────────────
-  const shareMessage = `Yo! Join "${tripName}" to ${destination} 🌍 ${formatTripDate(startDate)} - ${formatTripDate(endDate)}\n\nTap to join: ${inviteLink}`;
+  const shareMessage = generateShareMessage({
+    tripName: tripName || 'My Trip',
+    destination: destination || '',
+    startDate,
+    endDate,
+    inviteCode,
+  });
 
-  const handleCopyLink = () => {
+  const handleCopyLink = async () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    await Clipboard.setStringAsync(inviteLink);
     setLinkCopied(true);
     setTimeout(() => setLinkCopied(false), 2500);
-    // In production: Clipboard.setStringAsync(inviteLink)
   };
 
-  const handleWhatsApp = () => {
+  const handleWhatsApp = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    // In production: Linking.openURL(`https://wa.me/?text=${encodeURIComponent(shareMessage)}`)
-    addMember('WhatsApp Invite', 'whatsapp');
+    const url = generateWhatsAppUrl(shareMessage);
+    try {
+      const canOpen = await Linking.canOpenURL(url);
+      if (canOpen) {
+        await Linking.openURL(url);
+      } else {
+        await Clipboard.setStringAsync(shareMessage);
+        await Share.share({ message: shareMessage, title: `Join ${tripName} on TraiMate` });
+      }
+    } catch {
+      await Share.share({ message: shareMessage, title: `Join ${tripName} on TraiMate` });
+    }
   };
 
-  const handleSMS = () => {
+  const handleSMS = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    // In production: Linking.openURL(`sms:?body=${encodeURIComponent(shareMessage)}`)
-    addMember('SMS Invite', 'sms');
+    const smsUrl = `sms:?body=${encodeURIComponent(shareMessage)}`;
+    try {
+      await Linking.openURL(smsUrl);
+    } catch {
+      await Share.share({ message: shareMessage });
+    }
   };
 
-  const handleEmail = () => {
+  const handleEmail = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    // In production: Linking.openURL(`mailto:?subject=...&body=...`)
-    addMember('Email Invite', 'email');
+    const emailUrl = generateEmailUrl({
+      subject: `Join "${tripName || 'My Trip'}" on TraiMate!`,
+      body: shareMessage,
+    });
+    try {
+      await Linking.openURL(emailUrl);
+    } catch {
+      await Share.share({ message: shareMessage });
+    }
   };
 
   const handleNativeShare = async () => {
@@ -377,6 +369,14 @@ export default function InviteScreen() {
       endDate: endDate || null,
       currency,
       tripType,
+    });
+
+    // Persist the invitation so it can be accepted by others
+    await createInvitation({
+      tripId: trip.id,
+      tripName: tripName || 'My Trip',
+      destination: destination || '',
+      role: 'member',
     });
 
     // Dismiss the create-trip modal first, then push to trip screen

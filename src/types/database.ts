@@ -33,11 +33,29 @@ export interface Database {
           id: string;
           trip_id: string;
           user_id: string;
-          role: 'owner' | 'member';
+          role: 'organizer' | 'co-organizer' | 'member' | 'viewer';
+          invited_by: string | null;
           joined_at: string;
         };
         Insert: Omit<Database['public']['Tables']['trip_members']['Row'], 'id' | 'joined_at'>;
         Update: Partial<Database['public']['Tables']['trip_members']['Insert']>;
+      };
+      trip_invitations: {
+        Row: {
+          id: string;
+          trip_id: string;
+          invite_code: string;
+          inviter_id: string;
+          invited_email: string | null;
+          invited_phone: string | null;
+          role: 'organizer' | 'co-organizer' | 'member' | 'viewer';
+          status: 'pending' | 'accepted' | 'declined' | 'expired';
+          expires_at: string;
+          accepted_at: string | null;
+          created_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['trip_invitations']['Row'], 'id' | 'created_at'>;
+        Update: Partial<Database['public']['Tables']['trip_invitations']['Insert']>;
       };
       itinerary_items: {
         Row: {
@@ -182,3 +200,4 @@ export type PackingItem = Database['public']['Tables']['packing_items']['Row'];
 export type Notification = Database['public']['Tables']['notifications']['Row'];
 export type JournalEntry = Database['public']['Tables']['journal_entries']['Row'];
 export type Booking = Database['public']['Tables']['bookings']['Row'];
+export type TripInvitation = Database['public']['Tables']['trip_invitations']['Row'];

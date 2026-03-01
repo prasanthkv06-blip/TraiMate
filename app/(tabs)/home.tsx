@@ -2,11 +2,13 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import {
   View,
   Text,
+  TextInput,
   StyleSheet,
   ScrollView,
   Animated,
   Pressable,
   RefreshControl,
+  Modal,
   Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -102,6 +104,8 @@ export default function HomeScreen() {
   const [avatarEmoji, setAvatarEmoji] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [realTrips, setRealTrips] = useState<RealTrip[]>([]);
+  const [showJoinModal, setShowJoinModal] = useState(false);
+  const [joinCode, setJoinCode] = useState('');
 
   // Combine real + sample for stats
   const allTrips = [...realTrips, ...SAMPLE_TRIPS];
@@ -218,6 +222,15 @@ export default function HomeScreen() {
     router.push('/create-trip');
   };
 
+  const handleJoinTrip = () => {
+    const code = joinCode.trim().toLowerCase();
+    if (!code) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setShowJoinModal(false);
+    setJoinCode('');
+    router.push({ pathname: '/join/[code]', params: { code } });
+  };
+
   const handleTripPress = (trip: Trip) => {
     // For real trips, pass params so trip detail can load from storage
     const isSample = SAMPLE_TRIPS.some(s => s.id === trip.id);
@@ -294,15 +307,19 @@ export default function HomeScreen() {
           </View>
         </Animated.View>
 
-        {/* Search bar */}
+        {/* Join trip bar */}
         <Animated.View
           style={[
-            styles.searchBar,
             { opacity: searchOpacity, transform: [{ translateY: searchY }] },
           ]}
         >
-          <Ionicons name="search" size={18} color={Colors.textMuted} style={styles.searchIcon} />
-          <Text style={styles.searchPlaceholder}>Search trips, places...</Text>
+          <Pressable
+            style={styles.searchBar}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowJoinModal(true); }}
+          >
+            <Ionicons name="enter-outline" size={18} color={Colors.textMuted} style={styles.searchIcon} />
+            <Text style={styles.searchPlaceholder}>Have an invite code? Tap to join a trip</Text>
+          </Pressable>
         </Animated.View>
 
         {/* Welcome / Stats card */}
@@ -495,6 +512,53 @@ export default function HomeScreen() {
         {/* Bottom spacer for tab bar */}
         <View style={{ height: 100 }} />
       </ScrollView>
+
+      {/* Join trip modal */}
+      <Modal
+        visible={showJoinModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowJoinModal(false)}
+      >
+        <Pressable style={styles.joinModalOverlay} onPress={() => setShowJoinModal(false)}>
+          <Pressable style={[styles.joinModalContent, { paddingBottom: insets.bottom + 20 }]} onPress={() => {}}>
+            <View style={styles.joinModalHandle} />
+            <Text style={styles.joinModalTitle}>Join a Trip</Text>
+            <Text style={styles.joinModalSubtitle}>
+              Enter the 6-digit invite code shared by the trip organizer
+            </Text>
+            <View style={styles.joinCodeInputRow}>
+              <TextInput
+                style={styles.joinCodeInput}
+                value={joinCode}
+                onChangeText={setJoinCode}
+                placeholder="e.g. abc123"
+                placeholderTextColor={Colors.textMuted}
+                autoCapitalize="none"
+                autoCorrect={false}
+                maxLength={6}
+                returnKeyType="go"
+                onSubmitEditing={handleJoinTrip}
+              />
+            </View>
+            <Pressable
+              onPress={handleJoinTrip}
+              style={[styles.joinSubmitBtn, !joinCode.trim() && { opacity: 0.5 }]}
+              disabled={!joinCode.trim()}
+            >
+              <LinearGradient
+                colors={[Colors.sage, Colors.sageDark]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.joinSubmitGradient}
+              >
+                <Ionicons name="enter-outline" size={20} color={Colors.white} />
+                <Text style={styles.joinSubmitText}>Join Trip</Text>
+              </LinearGradient>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -746,5 +810,74 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.bodySemiBold,
     fontSize: FontSizes.sm,
     color: Colors.accent,
+  },
+
+  // Join trip modal
+  joinModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(44, 37, 32, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  joinModalContent: {
+    backgroundColor: Colors.white,
+    borderTopLeftRadius: BorderRadius.lg,
+    borderTopRightRadius: BorderRadius.lg,
+    paddingHorizontal: Spacing.xl,
+  },
+  joinModalHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Colors.border,
+    alignSelf: 'center',
+    marginTop: Spacing.md,
+    marginBottom: Spacing.lg,
+  },
+  joinModalTitle: {
+    fontFamily: Fonts.heading,
+    fontSize: FontSizes.xl,
+    color: Colors.text,
+    textAlign: 'center',
+    marginBottom: Spacing.xs,
+  },
+  joinModalSubtitle: {
+    fontFamily: Fonts.body,
+    fontSize: FontSizes.sm,
+    color: Colors.textMuted,
+    textAlign: 'center',
+    marginBottom: Spacing.lg,
+  },
+  joinCodeInputRow: {
+    marginBottom: Spacing.lg,
+  },
+  joinCodeInput: {
+    fontFamily: Fonts.heading,
+    fontSize: FontSizes.xxl,
+    color: Colors.text,
+    textAlign: 'center',
+    letterSpacing: 6,
+    backgroundColor: Colors.background,
+    borderRadius: BorderRadius.md,
+    paddingVertical: Spacing.lg,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+  },
+  joinSubmitBtn: {
+    borderRadius: BorderRadius.pill,
+    overflow: 'hidden',
+    marginBottom: Spacing.md,
+  },
+  joinSubmitGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.pill,
+  },
+  joinSubmitText: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: FontSizes.md,
+    color: Colors.white,
   },
 });

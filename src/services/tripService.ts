@@ -77,6 +77,14 @@ export async function createTrip(input: CreateTripInput): Promise<TripIndexEntry
     journalMoods: {},
     journalPhotos: {},
     packingItems: [],
+    members: [{
+      id: Crypto.randomUUID(),
+      userId: deviceId,
+      name: 'You',
+      role: 'organizer',
+      joinedAt: now,
+    }],
+    invitations: [],
   };
   await saveTripLocally(id, blob);
 

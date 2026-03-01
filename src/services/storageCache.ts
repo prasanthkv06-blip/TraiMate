@@ -7,6 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { ItineraryDay } from '../utils/itineraryGenerator';
 
 const TRIPS_INDEX_KEY = '@traimate_trips_index';
+const INVITATIONS_KEY = '@traimate_invitations';
 const tripKey = (id: string) => `@traimate_trip_${id}`;
 
 // ── Trip index (list of trip metadata) ──────────────────────────────────
@@ -41,6 +42,22 @@ export async function loadTripsIndex(): Promise<TripIndexEntry[]> {
 
 // ── Full trip blob (all data for one trip) ──────────────────────────────
 
+export interface InvitationLocal {
+  id: string;
+  tripId: string;
+  inviteCode: string;
+  inviterId: string;
+  invitedEmail: string | null;
+  invitedPhone: string | null;
+  role: 'organizer' | 'co-organizer' | 'member' | 'viewer';
+  status: 'pending' | 'accepted' | 'declined' | 'expired';
+  expiresAt: string;
+  acceptedAt: string | null;
+  createdAt: string;
+  tripName: string;
+  destination: string;
+}
+
 export interface TripBlob {
   meta: TripIndexEntry;
   itinerary: ItineraryDay[];
@@ -49,6 +66,16 @@ export interface TripBlob {
   journalMoods: Record<number, string>;
   journalPhotos: Record<number, string[]>;
   packingItems: PackingItemLocal[];
+  invitations?: InvitationLocal[];
+  members?: TripMemberLocal[];
+}
+
+export interface TripMemberLocal {
+  id: string;
+  userId: string;
+  name: string;
+  role: 'organizer' | 'co-organizer' | 'member' | 'viewer';
+  joinedAt: string;
 }
 
 export interface TripExpenseLocal {
@@ -91,4 +118,44 @@ export async function removeTripLocally(tripId: string): Promise<void> {
   const index = await loadTripsIndex();
   const updated = index.filter(t => t.id !== tripId);
   await saveTripsIndex(updated);
+}
+
+// ── Invitations (global list, not per-trip) ──────────────────────────────
+
+export async function saveInvitationsLocally(invitations: InvitationLocal[]): Promise<void> {
+  await AsyncStorage.setItem(INVITATIONS_KEY, JSON.stringify(invitations));
+}
+
+export async function loadInvitationsLocally(): Promise<InvitationLocal[]> {
+  const raw = await AsyncStorage.getItem(INVITATIONS_KEY);
+  if (!raw) return [];
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return [];
+  }
+}
+
+export async function addInvitationLocally(invitation: InvitationLocal): Promise<void> {
+  const existing = await loadInvitationsLocally();
+  // Prevent duplicates by invite code
+  const filtered = existing.filter(i => i.inviteCode !== invitation.inviteCode);
+  filtered.unshift(invitation);
+  await saveInvitationsLocally(filtered);
+}
+
+export async function updateInvitationLocally(
+  inviteCode: string,
+  updates: Partial<InvitationLocal>,
+): Promise<void> {
+  const existing = await loadInvitationsLocally();
+  const updated = existing.map(i =>
+    i.inviteCode === inviteCode ? { ...i, ...updates } : i
+  );
+  await saveInvitationsLocally(updated);
+}
+
+export async function getInvitationByCode(inviteCode: string): Promise<InvitationLocal | null> {
+  const all = await loadInvitationsLocally();
+  return all.find(i => i.inviteCode === inviteCode) || null;
 }

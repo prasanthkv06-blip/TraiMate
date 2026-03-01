@@ -45,7 +45,8 @@ create table public.trip_members (
   id uuid default uuid_generate_v4() primary key,
   trip_id uuid references public.trips(id) on delete cascade not null,
   user_id uuid references public.profiles(id) on delete cascade not null,
-  role text check (role in ('owner', 'member')) default 'member',
+  role text check (role in ('organizer', 'co-organizer', 'member', 'viewer')) default 'member',
+  invited_by uuid,
   joined_at timestamptz default now() not null,
   unique(trip_id, user_id)
 );
@@ -54,7 +55,29 @@ alter table public.trip_members enable row level security;
 create policy "Trip members can view members" on public.trip_members for select
   using (trip_id in (select trip_id from public.trip_members where user_id = auth.uid()));
 create policy "Trip owners can add members" on public.trip_members for insert
-  with check (trip_id in (select trip_id from public.trip_members where user_id = auth.uid() and role = 'owner'));
+  with check (trip_id in (select trip_id from public.trip_members where user_id = auth.uid() and role in ('organizer', 'co-organizer')));
+
+-- Trip Invitations
+create table public.trip_invitations (
+  id uuid default uuid_generate_v4() primary key,
+  trip_id uuid references public.trips(id) on delete cascade not null,
+  invite_code text not null unique,
+  inviter_id uuid not null,
+  invited_email text,
+  invited_phone text,
+  role text check (role in ('organizer', 'co-organizer', 'member', 'viewer')) default 'member',
+  status text check (status in ('pending', 'accepted', 'declined', 'expired')) default 'pending',
+  expires_at timestamptz not null,
+  accepted_at timestamptz,
+  created_at timestamptz default now() not null
+);
+
+alter table public.trip_invitations enable row level security;
+create policy "Anyone can view invitations by code" on public.trip_invitations for select using (true);
+create policy "Trip members can create invitations" on public.trip_invitations for insert with check (true);
+create policy "Invitations can be updated" on public.trip_invitations for update using (true);
+
+alter publication supabase_realtime add table public.trip_invitations;
 
 -- Itinerary Items
 create table public.itinerary_items (
