@@ -7,7 +7,7 @@ import type { Activity } from '../constants/aiData';
 import { getCached, setCache } from './apiCache';
 
 const API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY || '';
-const MODEL = 'gemini-2.0-flash';
+const MODEL = 'gemini-2.5-flash';
 const BASE_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}`;
 
 // ── Helpers ──────────────────────────────────────────────────────────────

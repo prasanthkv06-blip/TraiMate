@@ -174,12 +174,12 @@ export default function HomeScreen() {
               </Animated.View>
             </View>
           </View>
-          <Pressable style={styles.avatarContainer} onPress={() => router.push('/notifications')}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>
-                {(userName || 'T').charAt(0).toUpperCase()}
-              </Text>
-            </View>
+          <Pressable
+            style={styles.notifButton}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push('/notifications'); }}
+            hitSlop={12}
+          >
+            <Ionicons name="notifications-outline" size={24} color={Colors.text} />
             <View style={styles.notifDot} />
           </Pressable>
         </Animated.View>
@@ -389,32 +389,26 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.xxl,
     color: Colors.text,
   },
-  avatarContainer: {
+  notifButton: {
     position: 'relative',
-  },
-  avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 18,
-    backgroundColor: Colors.accent,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: Colors.white,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  avatarText: {
-    fontFamily: Fonts.bodySemiBold,
-    fontSize: FontSizes.lg,
-    color: Colors.white,
+    ...Shadows.card,
   },
   notifDot: {
     position: 'absolute',
-    top: -2,
-    right: -2,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    top: 8,
+    right: 9,
+    width: 9,
+    height: 9,
+    borderRadius: 5,
     backgroundColor: Colors.error,
     borderWidth: 2,
-    borderColor: Colors.background,
+    borderColor: Colors.white,
   },
   searchBar: {
     flexDirection: 'row',

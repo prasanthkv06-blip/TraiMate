@@ -104,11 +104,19 @@ export default function NameScreen() {
 
   const isValid = name.trim().length > 0;
 
+  const Wrapper = Platform.OS === 'web'
+    ? View
+    : ({ children, ...props }: any) => (
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false} {...props}>
+          {children}
+        </TouchableWithoutFeedback>
+      );
+
   return (
-    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+    <Wrapper style={Platform.OS === 'web' ? { flex: 1 } : undefined}>
       <View style={styles.container}>
         {/* Decorative elements */}
-        <View style={styles.decorContainer}>
+        <View style={styles.decorContainer} pointerEvents="none">
           <View style={[styles.decorDot, styles.dot1]} />
           <View style={[styles.decorDot, styles.dot2]} />
           <View style={[styles.decorDot, styles.dot3]} />
@@ -230,7 +238,7 @@ export default function NameScreen() {
           </Animated.View>
         </KeyboardAvoidingView>
       </View>
-    </TouchableWithoutFeedback>
+    </Wrapper>
   );
 }
 
