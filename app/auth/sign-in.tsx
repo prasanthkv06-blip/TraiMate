@@ -72,6 +72,8 @@ export default function SignInScreen() {
 
     if (authError) {
       setError(authError.message);
+    } else {
+      router.replace('/');
     }
   };
 

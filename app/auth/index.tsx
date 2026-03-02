@@ -87,8 +87,8 @@ export default function AuthLandingScreen() {
     setLoadingProvider('apple');
     const { error } = await auth.signInWithApple();
     setLoadingProvider(null);
-    if (error) {
-      // User cancelled or error — stay on screen
+    if (!error) {
+      router.replace('/');
     }
   };
 
@@ -97,8 +97,8 @@ export default function AuthLandingScreen() {
     setLoadingProvider('google');
     const { error } = await auth.signInWithGoogle();
     setLoadingProvider(null);
-    if (error) {
-      // Error handled silently
+    if (!error) {
+      router.replace('/');
     }
   };
 
