@@ -50,7 +50,7 @@ export default function Index() {
   }
 
   // Not authenticated and not guest → auth screen
-  return <Redirect href="/onboarding/welcome" />;
+  return <Redirect href="/auth" />;
 }
 
 const styles = StyleSheet.create({
