@@ -7,9 +7,13 @@ export interface Database {
           name: string;
           email: string;
           avatar_url: string | null;
+          auth_provider: string | null;
+          is_guest: boolean;
+          preferences: Record<string, unknown> | null;
           created_at: string;
+          updated_at: string;
         };
-        Insert: Omit<Database['public']['Tables']['profiles']['Row'], 'created_at'>;
+        Insert: Omit<Database['public']['Tables']['profiles']['Row'], 'created_at' | 'updated_at'>;
         Update: Partial<Database['public']['Tables']['profiles']['Insert']>;
       };
       trips: {

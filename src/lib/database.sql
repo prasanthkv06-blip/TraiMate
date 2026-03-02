@@ -11,7 +11,11 @@ create table public.profiles (
   email text not null,
   avatar_url text,
   push_token text,
-  created_at timestamptz default now() not null
+  auth_provider text default 'email',
+  is_guest boolean default false,
+  preferences jsonb default '{}',
+  created_at timestamptz default now() not null,
+  updated_at timestamptz default now()
 );
 
 alter table public.profiles enable row level security;
@@ -315,8 +319,14 @@ alter publication supabase_realtime add table public.bookings;
 create or replace function public.handle_new_user()
 returns trigger as $$
 begin
-  insert into public.profiles (id, name, email)
-  values (new.id, coalesce(new.raw_user_meta_data->>'name', 'Traveler'), new.email);
+  insert into public.profiles (id, name, email, avatar_url, auth_provider)
+  values (
+    new.id,
+    coalesce(new.raw_user_meta_data->>'name', 'Traveler'),
+    coalesce(new.email, ''),
+    coalesce(new.raw_user_meta_data->>'avatar_url', null),
+    coalesce(new.raw_user_meta_data->>'provider', 'email')
+  );
   return new;
 end;
 $$ language plpgsql security definer;
@@ -324,3 +334,25 @@ $$ language plpgsql security definer;
 create or replace trigger on_auth_user_created
   after insert on auth.users
   for each row execute procedure public.handle_new_user();
+
+-- ── Guest Data Migration RPC ────────────────────────────────
+-- Migrates all data from a device-based guest ID to an authenticated user ID
+
+create or replace function public.migrate_guest_data(
+  old_device_id text,
+  new_user_id uuid
+)
+returns void as $$
+begin
+  update public.trips set created_by = new_user_id::text where created_by = old_device_id;
+  update public.trip_members set user_id = new_user_id::text where user_id = old_device_id;
+  update public.expenses set paid_by = new_user_id::text where paid_by = old_device_id;
+  update public.packing_items set user_id = new_user_id::text where user_id = old_device_id;
+  update public.poll_votes set user_id = new_user_id::text where user_id = old_device_id;
+  update public.polls set created_by = new_user_id::text where created_by = old_device_id;
+  update public.notifications set user_id = new_user_id::text where user_id = old_device_id;
+  update public.journal_entries set created_by = new_user_id::text where created_by = old_device_id;
+  update public.chat_messages set user_id = new_user_id::text where user_id = old_device_id;
+  update public.activity_log set user_id = new_user_id::text where user_id = old_device_id;
+end;
+$$ language plpgsql security definer;

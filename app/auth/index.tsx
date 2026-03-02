@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -7,41 +7,39 @@ import {
   Animated,
   Dimensions,
   Image,
+  Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Colors, Fonts, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
 import { useAuth } from '../../src/contexts/AuthContext';
+import { Colors, Fonts, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
 
 const { width, height } = Dimensions.get('window');
 
-export default function WelcomeScreen() {
+export default function AuthLandingScreen() {
   const router = useRouter();
   const auth = useAuth();
+  const [loadingProvider, setLoadingProvider] = useState<string | null>(null);
 
   // Animations
   const logoScale = useRef(new Animated.Value(0.3)).current;
   const logoOpacity = useRef(new Animated.Value(0)).current;
   const titleY = useRef(new Animated.Value(30)).current;
   const titleOpacity = useRef(new Animated.Value(0)).current;
-  const subtitleY = useRef(new Animated.Value(20)).current;
-  const subtitleOpacity = useRef(new Animated.Value(0)).current;
-  const buttonY = useRef(new Animated.Value(40)).current;
-  const buttonOpacity = useRef(new Animated.Value(0)).current;
+  const buttonsY = useRef(new Animated.Value(40)).current;
+  const buttonsOpacity = useRef(new Animated.Value(0)).current;
   const decorOpacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     Animated.sequence([
-      // Fade in decorative background
       Animated.timing(decorOpacity, {
         toValue: 1,
         duration: 600,
         useNativeDriver: true,
       }),
-      // Logo entrance
       Animated.parallel([
         Animated.spring(logoScale, {
           toValue: 1,
@@ -55,7 +53,6 @@ export default function WelcomeScreen() {
           useNativeDriver: true,
         }),
       ]),
-      // Title slide up
       Animated.parallel([
         Animated.spring(titleY, {
           toValue: 0,
@@ -69,29 +66,14 @@ export default function WelcomeScreen() {
           useNativeDriver: true,
         }),
       ]),
-      // Subtitle slide up
       Animated.parallel([
-        Animated.spring(subtitleY, {
+        Animated.spring(buttonsY, {
           toValue: 0,
           tension: 60,
           friction: 8,
           useNativeDriver: true,
         }),
-        Animated.timing(subtitleOpacity, {
-          toValue: 1,
-          duration: 400,
-          useNativeDriver: true,
-        }),
-      ]),
-      // Button slide up
-      Animated.parallel([
-        Animated.spring(buttonY, {
-          toValue: 0,
-          tension: 60,
-          friction: 8,
-          useNativeDriver: true,
-        }),
-        Animated.timing(buttonOpacity, {
+        Animated.timing(buttonsOpacity, {
           toValue: 1,
           duration: 400,
           useNativeDriver: true,
@@ -100,12 +82,32 @@ export default function WelcomeScreen() {
     ]).start();
   }, []);
 
-  const handleGetStarted = () => {
+  const handleApple = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    router.push('/auth');
+    setLoadingProvider('apple');
+    const { error } = await auth.signInWithApple();
+    setLoadingProvider(null);
+    if (error) {
+      // User cancelled or error — stay on screen
+    }
   };
 
-  const handleExploreAsGuest = async () => {
+  const handleGoogle = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setLoadingProvider('google');
+    const { error } = await auth.signInWithGoogle();
+    setLoadingProvider(null);
+    if (error) {
+      // Error handled silently
+    }
+  };
+
+  const handleEmail = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    router.push('/auth/sign-in');
+  };
+
+  const handleGuest = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     await auth.continueAsGuest();
     router.replace('/(tabs)/home');
@@ -121,7 +123,7 @@ export default function WelcomeScreen() {
       </Animated.View>
 
       <View style={styles.content}>
-        {/* Logo / Icon */}
+        {/* Logo */}
         <Animated.View
           style={[
             styles.logoContainer,
@@ -144,55 +146,72 @@ export default function WelcomeScreen() {
           style={{
             opacity: titleOpacity,
             transform: [{ translateY: titleY }],
+            alignItems: 'center',
           }}
         >
           <Text style={styles.title}>TrailMate</Text>
-        </Animated.View>
-
-        {/* Subtitle */}
-        <Animated.View
-          style={{
-            opacity: subtitleOpacity,
-            transform: [{ translateY: subtitleY }],
-          }}
-        >
           <Text style={styles.subtitle}>
             Your AI-powered travel companion
           </Text>
         </Animated.View>
-
-        {/* Feature pills */}
-        <Animated.View
-          style={[
-            styles.featurePills,
-            {
-              opacity: subtitleOpacity,
-              transform: [{ translateY: subtitleY }],
-            },
-          ]}
-        >
-          {['AI Local Guide', 'Smart Itineraries', 'Live Weather', 'Real Places'].map((feature, i) => (
-            <View key={i} style={styles.pill}>
-              <Text style={styles.pillText}>{feature}</Text>
-            </View>
-          ))}
-        </Animated.View>
       </View>
 
-      {/* CTA Button */}
+      {/* Auth buttons */}
       <Animated.View
         style={[
           styles.buttonContainer,
           {
-            opacity: buttonOpacity,
-            transform: [{ translateY: buttonY }],
+            opacity: buttonsOpacity,
+            transform: [{ translateY: buttonsY }],
           },
         ]}
       >
+        {/* Apple Sign In (iOS only) */}
+        {Platform.OS === 'ios' && (
+          <Pressable
+            onPress={handleApple}
+            disabled={loadingProvider !== null}
+            style={({ pressed }) => [
+              styles.appleButton,
+              pressed && styles.buttonPressed,
+            ]}
+          >
+            {loadingProvider === 'apple' ? (
+              <ActivityIndicator color={Colors.white} size="small" />
+            ) : (
+              <>
+                <Ionicons name="logo-apple" size={20} color={Colors.white} />
+                <Text style={styles.appleButtonText}>Continue with Apple</Text>
+              </>
+            )}
+          </Pressable>
+        )}
+
+        {/* Google Sign In */}
         <Pressable
-          onPress={handleGetStarted}
+          onPress={handleGoogle}
+          disabled={loadingProvider !== null}
           style={({ pressed }) => [
-            styles.button,
+            styles.googleButton,
+            pressed && styles.buttonPressed,
+          ]}
+        >
+          {loadingProvider === 'google' ? (
+            <ActivityIndicator color={Colors.text} size="small" />
+          ) : (
+            <>
+              <Ionicons name="logo-google" size={18} color={Colors.text} />
+              <Text style={styles.googleButtonText}>Continue with Google</Text>
+            </>
+          )}
+        </Pressable>
+
+        {/* Email Sign In */}
+        <Pressable
+          onPress={handleEmail}
+          disabled={loadingProvider !== null}
+          style={({ pressed }) => [
+            styles.emailButton,
             pressed && styles.buttonPressed,
           ]}
         >
@@ -200,15 +219,24 @@ export default function WelcomeScreen() {
             colors={[Colors.accent, Colors.accentDark]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
-            style={styles.buttonGradient}
+            style={styles.emailButtonGradient}
           >
-            <Text style={styles.buttonText}>Get Started</Text>
-            <Ionicons name="arrow-forward" size={18} color={Colors.white} />
+            <Ionicons name="mail-outline" size={18} color={Colors.white} />
+            <Text style={styles.emailButtonText}>Sign in with Email</Text>
           </LinearGradient>
         </Pressable>
 
+        {/* Divider */}
+        <View style={styles.divider}>
+          <View style={styles.dividerLine} />
+          <Text style={styles.dividerText}>or</Text>
+          <View style={styles.dividerLine} />
+        </View>
+
+        {/* Guest mode */}
         <Pressable
-          onPress={handleExploreAsGuest}
+          onPress={handleGuest}
+          disabled={loadingProvider !== null}
           style={({ pressed }) => [
             styles.guestButton,
             pressed && styles.buttonPressed,
@@ -302,53 +330,84 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     textAlign: 'center',
     lineHeight: 28,
-    marginBottom: Spacing.lg,
-  },
-  featurePills: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: Spacing.sm,
-  },
-  pill: {
-    backgroundColor: Colors.white,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.pill,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  pillText: {
-    fontFamily: Fonts.bodyMedium,
-    fontSize: FontSizes.sm,
-    color: Colors.accent,
   },
   buttonContainer: {
     paddingHorizontal: Spacing.xl,
     paddingBottom: Spacing.xxl,
     alignItems: 'center',
   },
-  button: {
-    width: '100%',
-    borderRadius: BorderRadius.xl,
-    overflow: 'hidden',
-  },
   buttonPressed: {
     transform: [{ scale: 0.97 }],
     opacity: 0.9,
   },
-  buttonGradient: {
+  appleButton: {
+    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 18,
-    paddingHorizontal: Spacing.xl,
+    backgroundColor: '#000000',
+    borderRadius: BorderRadius.xl,
+    paddingVertical: 16,
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
+  },
+  appleButtonText: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: FontSizes.md,
+    color: Colors.white,
+  },
+  googleButton: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.xl,
+    paddingVertical: 16,
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+  },
+  googleButtonText: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: FontSizes.md,
+    color: Colors.text,
+  },
+  emailButton: {
+    width: '100%',
+    borderRadius: BorderRadius.xl,
+    overflow: 'hidden',
+    marginBottom: Spacing.md,
+  },
+  emailButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
     gap: Spacing.sm,
   },
-  buttonText: {
+  emailButtonText: {
     fontFamily: Fonts.bodySemiBold,
-    fontSize: FontSizes.lg,
+    fontSize: FontSizes.md,
     color: Colors.white,
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    marginBottom: Spacing.md,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: Colors.border,
+  },
+  dividerText: {
+    fontFamily: Fonts.body,
+    fontSize: FontSizes.sm,
+    color: Colors.textMuted,
+    marginHorizontal: Spacing.md,
   },
   guestButton: {
     width: '100%',
@@ -358,7 +417,6 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: Spacing.sm,
   },
   guestButtonText: {
     fontFamily: Fonts.bodySemiBold,

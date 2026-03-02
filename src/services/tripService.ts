@@ -5,7 +5,7 @@
  */
 import * as Crypto from 'expo-crypto';
 import { supabase } from '../lib/supabase';
-import { getDeviceId } from './deviceUser';
+import { getDeviceId, getCurrentUserId } from './deviceUser';
 import {
   saveTripLocally,
   loadTripLocally,
@@ -52,7 +52,7 @@ export interface CreateTripInput {
 }
 
 export async function createTrip(input: CreateTripInput): Promise<TripIndexEntry> {
-  const deviceId = await getDeviceId();
+  const deviceId = await getCurrentUserId();
   const id = Crypto.randomUUID();
   const now = new Date().toISOString();
 
@@ -118,7 +118,7 @@ export async function createTrip(input: CreateTripInput): Promise<TripIndexEntry
 export async function fetchTrips(): Promise<TripIndexEntry[]> {
   // Try Supabase first for latest data, with retry + backoff
   const remote = await supabaseSafe(() => withRetry(async () => {
-    const deviceId = await getDeviceId();
+    const deviceId = await getCurrentUserId();
     const { data, error } = await supabase
       .from('trips')
       .select('*')
@@ -189,7 +189,7 @@ export async function renameTrip(tripId: string, newName: string): Promise<void>
 
 export async function duplicateTrip(tripId: string): Promise<TripIndexEntry> {
   const blob = await loadTripLocally(tripId);
-  const deviceId = await getDeviceId();
+  const deviceId = await getCurrentUserId();
   const newId = Crypto.randomUUID();
   const now = new Date().toISOString();
 
@@ -505,7 +505,7 @@ export async function loadChatMessages(tripId: string): Promise<import('./storag
 // ── User Role ───────────────────────────────────────────────────────────
 
 export async function getUserRole(tripId: string): Promise<import('../utils/permissions').TripRole> {
-  const deviceId = await getDeviceId();
+  const deviceId = await getCurrentUserId();
   const blob = await loadTripLocally(tripId);
   if (!blob?.members) return 'organizer'; // creator defaults to organizer
   const me = blob.members.find(m => m.userId === deviceId);

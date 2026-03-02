@@ -17,12 +17,15 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Fonts, FontSizes, Spacing, BorderRadius, Shadows } from '../../src/constants/theme';
+import { useAuth } from '../../src/contexts/AuthContext';
+import { supabase } from '../../src/lib/supabase';
 
 const ONBOARDING_KEY = '@traimate_onboarded';
 const USER_NAME_KEY = '@traimate_user_name';
 
 export default function NameScreen() {
   const router = useRouter();
+  const { session } = useAuth();
   const [name, setName] = useState('');
   const [isFocused, setIsFocused] = useState(false);
   const inputRef = useRef<TextInput>(null);
@@ -95,6 +98,11 @@ export default function NameScreen() {
     try {
       await AsyncStorage.setItem(USER_NAME_KEY, name.trim());
       await AsyncStorage.setItem(ONBOARDING_KEY, 'true');
+
+      // Sync name to Supabase profile if authenticated
+      if (session?.user) {
+        (supabase.from('profiles') as any).update({ name: name.trim() }).eq('id', session.user.id).then(() => {});
+      }
     } catch (e) {
       console.warn('Storage error:', e);
     }

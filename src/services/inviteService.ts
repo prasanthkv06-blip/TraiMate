@@ -4,7 +4,7 @@
  */
 import * as Crypto from 'expo-crypto';
 import { supabase } from '../lib/supabase';
-import { getDeviceId } from './deviceUser';
+import { getDeviceId, getCurrentUserId } from './deviceUser';
 import {
   addInvitationLocally,
   getInvitationByCode,
@@ -56,7 +56,7 @@ export interface CreateInvitationInput {
 }
 
 export async function createInvitation(input: CreateInvitationInput): Promise<InvitationLocal> {
-  const deviceId = await getDeviceId();
+  const deviceId = await getCurrentUserId();
   const id = Crypto.randomUUID();
   const inviteCode = generateInviteCode();
   const now = new Date().toISOString();
@@ -180,7 +180,7 @@ export async function acceptInvitation(inviteCode: string): Promise<AcceptResult
     return { success: false, error: 'Invitation has expired' };
   }
 
-  const deviceId = await getDeviceId();
+  const deviceId = await getCurrentUserId();
   const now = new Date().toISOString();
 
   // Update invitation status

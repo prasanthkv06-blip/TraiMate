@@ -45,3 +45,20 @@ export async function getUserProfile(): Promise<UserProfile> {
 export async function saveUserProfile(profile: Omit<UserProfile, 'deviceId'>): Promise<void> {
   await AsyncStorage.setItem(USER_PROFILE_KEY, JSON.stringify(profile));
 }
+
+/**
+ * Returns the current user ID: Supabase auth user ID if authenticated,
+ * otherwise falls back to the device-based UUID for guest mode.
+ */
+export async function getCurrentUserId(): Promise<string> {
+  try {
+    const { supabase } = await import('../lib/supabase');
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user?.id) {
+      return session.user.id;
+    }
+  } catch {
+    // Supabase not configured or error — fall back to device ID
+  }
+  return getDeviceId();
+}

@@ -10,6 +10,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, Fonts, FontSizes, Spacing, BorderRadius, Shadows } from '../../src/constants/theme';
 import { SAMPLE_TRIPS } from '../../src/constants/sampleData';
+import { useAuth } from '../../src/contexts/AuthContext';
 import { fetchTrips } from '../../src/services/tripService';
 import {
   loadDocuments,
@@ -37,6 +38,7 @@ const DOC_TYPES: DocumentType[] = ['passport', 'visa', 'national_id', 'insurance
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { session, user, isGuest, signOut, deleteAccount } = useAuth();
   const [userName, setUserName] = useState('');
   const [avatarEmoji, setAvatarEmoji] = useState<string | null>(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -96,9 +98,39 @@ export default function ProfileScreen() {
     setShowEmojiPicker(false);
   };
 
-  const handleResetOnboarding = async () => {
-    await AsyncStorage.multiRemove([ONBOARDING_KEY, USER_NAME_KEY]);
-    router.replace('/onboarding/welcome');
+  const handleSignOut = async () => {
+    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Sign Out',
+        onPress: async () => {
+          await signOut();
+          router.replace('/onboarding/welcome');
+        },
+      },
+    ]);
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Delete Account',
+      'This action cannot be undone. All your data will be lost.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            await deleteAccount();
+            router.replace('/onboarding/welcome');
+          },
+        },
+      ],
+    );
+  };
+
+  const handleCreateAccount = () => {
+    router.push('/auth');
   };
 
   // Document handlers
@@ -319,14 +351,84 @@ export default function ProfileScreen() {
           </Pressable>
         </Modal>
 
-        <Pressable
-          style={styles.resetButton}
-          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); handleResetOnboarding(); }}
-          accessibilityRole="button"
-          accessibilityLabel="Reset onboarding"
-        >
-          <Text style={styles.resetText}>Reset Onboarding</Text>
-        </Pressable>
+        {/* Auth Status */}
+        <View style={styles.authSection}>
+          {session ? (
+            <>
+              <View style={styles.authStatusCard}>
+                <Ionicons name="shield-checkmark-outline" size={18} color={Colors.sage} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.authStatusLabel}>Signed in</Text>
+                  <Text style={styles.authStatusEmail}>{user?.email}</Text>
+                </View>
+                {user?.user_metadata?.avatar_url && (
+                  <View style={styles.providerBadge}>
+                    <Text style={styles.providerBadgeText}>
+                      {(user.app_metadata?.provider || 'email').charAt(0).toUpperCase() +
+                        (user.app_metadata?.provider || 'email').slice(1)}
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              <Pressable
+                style={styles.resetButton}
+                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); handleSignOut(); }}
+              >
+                <Ionicons name="log-out-outline" size={18} color={Colors.textSecondary} />
+                <Text style={styles.resetText}>Sign Out</Text>
+              </Pressable>
+
+              <Pressable
+                style={styles.deleteButton}
+                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); handleDeleteAccount(); }}
+              >
+                <Ionicons name="trash-outline" size={18} color={Colors.error} />
+                <Text style={styles.deleteText}>Delete Account</Text>
+              </Pressable>
+            </>
+          ) : isGuest ? (
+            <>
+              <View style={styles.authStatusCard}>
+                <Ionicons name="person-outline" size={18} color={Colors.accent} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.authStatusLabel}>Guest mode</Text>
+                  <Text style={styles.authStatusEmail}>Create an account to sync your data</Text>
+                </View>
+              </View>
+
+              <Pressable
+                style={styles.createAccountButton}
+                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); handleCreateAccount(); }}
+              >
+                <LinearGradient
+                  colors={[Colors.accent, Colors.accentDark]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.createAccountGradient}
+                >
+                  <Ionicons name="person-add-outline" size={18} color={Colors.white} />
+                  <Text style={styles.createAccountText}>Create Account</Text>
+                </LinearGradient>
+              </Pressable>
+            </>
+          ) : (
+            <Pressable
+              style={styles.createAccountButton}
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); handleCreateAccount(); }}
+            >
+              <LinearGradient
+                colors={[Colors.accent, Colors.accentDark]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.createAccountGradient}
+              >
+                <Ionicons name="log-in-outline" size={18} color={Colors.white} />
+                <Text style={styles.createAccountText}>Sign In</Text>
+              </LinearGradient>
+            </Pressable>
+          )}
+        </View>
       </ScrollView>
     </View>
   );
@@ -419,19 +521,88 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     marginTop: 2,
   },
+  authSection: {
+    marginTop: Spacing.md,
+    gap: Spacing.sm,
+  },
+  authStatusCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    backgroundColor: Colors.white,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    ...Shadows.card,
+  },
+  authStatusLabel: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: FontSizes.sm,
+    color: Colors.text,
+  },
+  authStatusEmail: {
+    fontFamily: Fonts.body,
+    fontSize: FontSizes.xs,
+    color: Colors.textMuted,
+    marginTop: 2,
+  },
+  providerBadge: {
+    backgroundColor: `${Colors.sage}20`,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.sm,
+  },
+  providerBadgeText: {
+    fontFamily: Fonts.bodyMedium,
+    fontSize: FontSizes.xs,
+    color: Colors.sage,
+  },
   resetButton: {
+    flexDirection: 'row',
     backgroundColor: Colors.white,
     padding: Spacing.md,
     borderRadius: BorderRadius.md,
     alignItems: 'center',
+    justifyContent: 'center',
     borderWidth: 1,
     borderColor: Colors.border,
-    marginTop: Spacing.md,
+    gap: Spacing.sm,
   },
   resetText: {
     fontFamily: Fonts.bodyMedium,
     fontSize: FontSizes.md,
     color: Colors.textSecondary,
+  },
+  deleteButton: {
+    flexDirection: 'row',
+    backgroundColor: Colors.white,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: Colors.error,
+    gap: Spacing.sm,
+  },
+  deleteText: {
+    fontFamily: Fonts.bodyMedium,
+    fontSize: FontSizes.md,
+    color: Colors.error,
+  },
+  createAccountButton: {
+    borderRadius: BorderRadius.xl,
+    overflow: 'hidden',
+  },
+  createAccountGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.md,
+    gap: Spacing.sm,
+  },
+  createAccountText: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: FontSizes.md,
+    color: Colors.white,
   },
   // Emoji picker modal
   modalOverlay: {
