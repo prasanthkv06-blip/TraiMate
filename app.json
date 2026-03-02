@@ -47,7 +47,9 @@
       "expo-local-authentication",
       ["expo-camera", {
         "cameraPermission": "TraiMate needs camera access to capture travel journal photos and scan booking documents."
-      }]
+      }],
+      "expo-document-picker",
+      "expo-image-picker"
     ],
     "extra": {
       "router": {},

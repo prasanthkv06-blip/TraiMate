@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, Pressable, Modal, ScrollView, TextInput, Alert, Platform } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Modal, ScrollView, TextInput, Alert, Platform, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
@@ -24,6 +24,7 @@ import {
   type TravelDocument,
   type DocumentType,
 } from '../../src/services/storageCache';
+import { scanDocument, pickDocumentImage, pickDocumentPDF } from '../../src/services/documentScanner';
 
 const USER_NAME_KEY = '@traimate_user_name';
 const ONBOARDING_KEY = '@traimate_onboarded';
@@ -56,6 +57,7 @@ export default function ProfileScreen() {
   const [docType, setDocType] = useState<DocumentType>('passport');
   const [docLabel, setDocLabel] = useState('');
   const [docFields, setDocFields] = useState<Record<string, string>>({});
+  const [isExtracting, setIsExtracting] = useState(false);
 
   const loadStats = useCallback(async () => {
     try {
@@ -201,6 +203,21 @@ export default function ProfileScreen() {
     ]);
   };
 
+  const handleExtract = async (extractor: (type: DocumentType) => Promise<{ fields: Record<string, string> } | null>) => {
+    setIsExtracting(true);
+    try {
+      const result = await extractor(docType);
+      if (result && Object.keys(result.fields).length > 0) {
+        setDocFields(prev => ({ ...prev, ...result.fields }));
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    } catch {
+      // Silently fail — user can still fill fields manually
+    } finally {
+      setIsExtracting(false);
+    }
+  };
+
   const currentSchema = DOCUMENT_TYPE_CONFIG[docType];
 
   return (
@@ -335,6 +352,30 @@ export default function ProfileScreen() {
               <Text style={styles.modalTitle}>
                 {editingDoc ? 'Edit' : 'Add'} {currentSchema.emoji} {currentSchema.label}
               </Text>
+
+              {/* Scan / Photo / PDF buttons */}
+              {isExtracting ? (
+                <View style={styles.extractingRow}>
+                  <ActivityIndicator size="small" color={Colors.sage} />
+                  <Text style={styles.extractingText}>Extracting details...</Text>
+                </View>
+              ) : (
+                <View style={styles.scanRow}>
+                  <Pressable style={styles.scanBtn} onPress={() => handleExtract(scanDocument)}>
+                    <Ionicons name="camera-outline" size={18} color={Colors.sage} />
+                    <Text style={styles.scanBtnLabel}>Scan</Text>
+                  </Pressable>
+                  <Pressable style={styles.scanBtn} onPress={() => handleExtract(pickDocumentImage)}>
+                    <Ionicons name="image-outline" size={18} color={Colors.sage} />
+                    <Text style={styles.scanBtnLabel}>Photo</Text>
+                  </Pressable>
+                  <Pressable style={styles.scanBtn} onPress={() => handleExtract(pickDocumentPDF)}>
+                    <Ionicons name="document-outline" size={18} color={Colors.sage} />
+                    <Text style={styles.scanBtnLabel}>PDF</Text>
+                  </Pressable>
+                </View>
+              )}
+
               <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                 <TextInput
                   style={styles.docInput}
@@ -829,6 +870,42 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.bodyMedium,
     fontSize: FontSizes.xs,
     color: Colors.text,
+  },
+  // Scan / extract buttons
+  scanRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  scanBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.xs,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.pill,
+    borderWidth: 1,
+    borderColor: Colors.sage,
+    backgroundColor: `${Colors.sage}10`,
+  },
+  scanBtnLabel: {
+    fontFamily: Fonts.bodyMedium,
+    fontSize: FontSizes.sm,
+    color: Colors.sage,
+  },
+  extractingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    paddingVertical: Spacing.md,
+    marginBottom: Spacing.md,
+  },
+  extractingText: {
+    fontFamily: Fonts.bodyMedium,
+    fontSize: FontSizes.sm,
+    color: Colors.sage,
   },
   // Doc modal
   docModalContent: {

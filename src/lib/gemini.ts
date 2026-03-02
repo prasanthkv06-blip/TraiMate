@@ -54,6 +54,71 @@ export async function callGemini(prompt: string, options: GeminiOptions = {}): P
   return text;
 }
 
+// ── Document Field Extraction (Vision) ───────────────────────────────────
+
+import { DOCUMENT_TYPE_CONFIG, type DocumentType } from '../services/storageCache';
+
+export async function extractDocumentFields(
+  base64: string,
+  mimeType: string,
+  documentType: DocumentType,
+): Promise<Record<string, string>> {
+  if (!isConfigured()) return {};
+
+  const config = DOCUMENT_TYPE_CONFIG[documentType];
+  const fieldKeys = config.fields.map(f => `"${f.key}" (${f.label})`).join(', ');
+
+  const body = {
+    contents: [
+      {
+        parts: [
+          {
+            inline_data: {
+              mime_type: mimeType,
+              data: base64,
+            },
+          },
+          {
+            text: `Extract the following fields from this ${config.label} document image/PDF. Return ONLY valid JSON with these keys: ${fieldKeys}. If a field cannot be found, omit it. Do not invent values.`,
+          },
+        ],
+      },
+    ],
+    generationConfig: {
+      temperature: 0.1,
+      maxOutputTokens: 1024,
+      responseMimeType: 'application/json',
+    },
+  };
+
+  try {
+    const response = await fetch(`${BASE_URL}:generateContent?key=${API_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) return {};
+
+    const data = await response.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!text) return {};
+
+    const parsed = JSON.parse(text);
+    // Only keep keys that match known field keys
+    const validKeys = new Set(config.fields.map(f => f.key));
+    const result: Record<string, string> = {};
+    for (const [key, value] of Object.entries(parsed)) {
+      if (validKeys.has(key) && typeof value === 'string' && value.length > 0) {
+        result[key] = value;
+      }
+    }
+    return result;
+  } catch {
+    return {};
+  }
+}
+
 // ── Chat with AI Guide ───────────────────────────────────────────────────
 
 export interface ChatMessage {
