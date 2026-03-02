@@ -30,12 +30,12 @@ BEGIN
   -- 3. Anonymize chat messages in shared trips
   UPDATE public.chat_messages
   SET user_name = 'Deleted User'
-  WHERE user_id = target_user_id::text;
+  WHERE user_id = target_user_id;
 
   -- 4. Anonymize activity log entries
   UPDATE public.activity_log
   SET user_name = 'Deleted User'
-  WHERE user_id = target_user_id::text;
+  WHERE user_id = target_user_id;
 
   -- 5. Delete notifications
   DELETE FROM public.notifications
@@ -51,7 +51,7 @@ BEGIN
 
   -- 8. Delete invitations created by user
   DELETE FROM public.trip_invitations
-  WHERE inviter_id = target_user_id::text;
+  WHERE inviter_id = target_user_id;
 
   -- 9. Delete profile
   DELETE FROM public.profiles
