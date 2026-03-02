@@ -16,7 +16,12 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.trailmate.app",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSCameraUsageDescription": "TraiMate needs camera access to capture travel journal photos and scan booking documents.",
+        "NSPhotoLibraryUsageDescription": "TraiMate needs photo library access to add photos to your travel journal.",
+        "NSPhotoLibraryAddUsageDescription": "TraiMate saves captured photos to your photo library.",
+        "NSLocationWhenInUseUsageDescription": "TraiMate uses your location to show nearby places and weather at your destination.",
+        "NSFaceIDUsageDescription": "TraiMate uses Face ID to protect your travel documents and personal data."
       }
     },
     "android": {
@@ -37,7 +42,12 @@
       "expo-image",
       "expo-secure-store",
       "expo-apple-authentication",
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-sharing",
+      "expo-local-authentication",
+      ["expo-camera", {
+        "cameraPermission": "TraiMate needs camera access to capture travel journal photos and scan booking documents."
+      }]
     ],
     "extra": {
       "router": {},

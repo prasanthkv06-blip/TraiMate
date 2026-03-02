@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, Pressable, Modal, ScrollView, TextInput, Alert } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Modal, ScrollView, TextInput, Alert, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
@@ -11,7 +11,10 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, Fonts, FontSizes, Spacing, BorderRadius, Shadows } from '../../src/constants/theme';
 import { SAMPLE_TRIPS } from '../../src/constants/sampleData';
 import { useAuth } from '../../src/contexts/AuthContext';
+import { useBiometric } from '../../src/contexts/BiometricContext';
 import { fetchTrips } from '../../src/services/tripService';
+import { exportUserData } from '../../src/services/dataExport';
+import { logSecurityEvent } from '../../src/services/auditService';
 import {
   loadDocuments,
   addDocument,
@@ -39,6 +42,7 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { session, user, isGuest, signOut, deleteAccount } = useAuth();
+  const { isEnabled: biometricEnabled, setEnabled: setBiometricEnabled, isAvailable: biometricAvailable } = useBiometric();
   const [userName, setUserName] = useState('');
   const [avatarEmoji, setAvatarEmoji] = useState<string | null>(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -99,34 +103,49 @@ export default function ProfileScreen() {
   };
 
   const handleSignOut = async () => {
-    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Sign Out',
-        onPress: async () => {
-          await signOut();
-          router.replace('/onboarding/welcome');
-        },
-      },
-    ]);
+    const doSignOut = async () => {
+      try {
+        await signOut();
+      } catch (e) {
+        console.warn('Sign out error:', e);
+      }
+      router.replace('/auth');
+    };
+
+    if (Platform.OS === 'web') {
+      if (window.confirm('Are you sure you want to sign out?')) {
+        await doSignOut();
+      }
+    } else {
+      Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Sign Out', onPress: doSignOut },
+      ]);
+    }
   };
 
   const handleDeleteAccount = () => {
-    Alert.alert(
-      'Delete Account',
-      'This action cannot be undone. All your data will be lost.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            await deleteAccount();
-            router.replace('/onboarding/welcome');
+    if (Platform.OS === 'web') {
+      if (window.confirm('This action cannot be undone. All your data will be lost. Delete account?')) {
+        deleteAccount().then(() => router.replace('/auth'));
+      }
+    } else {
+      Alert.alert(
+        'Delete Account',
+        'This action cannot be undone. All your data will be lost.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Delete',
+            style: 'destructive',
+            onPress: async () => {
+              await deleteAccount();
+              router.replace('/auth');
+            },
           },
-        },
-      ],
-    );
+        ],
+      );
+    }
   };
 
   const handleCreateAccount = () => {
@@ -350,6 +369,79 @@ export default function ProfileScreen() {
             </Pressable>
           </Pressable>
         </Modal>
+
+        {/* ── Security & Privacy ─────────────────────────── */}
+        <View style={styles.docsSection}>
+          <View style={styles.docsSectionHeader}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm }}>
+              <Ionicons name="shield-checkmark-outline" size={20} color={Colors.sage} />
+              <Text style={styles.docsSectionTitle}>Security & Privacy</Text>
+            </View>
+          </View>
+
+          {biometricAvailable && (
+            <Pressable
+              style={styles.docCard}
+              onPress={async () => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                const result = await setBiometricEnabled(!biometricEnabled);
+                if (result.error) {
+                  Alert.alert('Biometric Unavailable', result.error);
+                } else {
+                  logSecurityEvent(biometricEnabled ? 'biometric_disabled' : 'biometric_enabled');
+                }
+              }}
+            >
+              <View style={styles.docCardLeft}>
+                <Text style={styles.docCardEmoji}>{Platform.OS === 'ios' ? '🔐' : '🔒'}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.docCardLabel}>App Lock</Text>
+                  <Text style={styles.docCardType}>
+                    {biometricEnabled ? 'Enabled — Face ID / Passcode' : 'Disabled'}
+                  </Text>
+                </View>
+              </View>
+              <View style={[styles.toggleTrack, biometricEnabled && styles.toggleTrackActive]}>
+                <View style={[styles.toggleThumb, biometricEnabled && styles.toggleThumbActive]} />
+              </View>
+            </Pressable>
+          )}
+
+          <Pressable
+            style={styles.docCard}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              logSecurityEvent('data_export');
+              exportUserData();
+            }}
+          >
+            <View style={styles.docCardLeft}>
+              <Text style={styles.docCardEmoji}>📦</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.docCardLabel}>Export My Data</Text>
+                <Text style={styles.docCardType}>Download all your data as JSON</Text>
+              </View>
+            </View>
+            <Ionicons name="download-outline" size={18} color={Colors.textMuted} />
+          </Pressable>
+
+          <Pressable
+            style={styles.docCard}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.push('/privacy');
+            }}
+          >
+            <View style={styles.docCardLeft}>
+              <Text style={styles.docCardEmoji}>📜</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.docCardLabel}>Privacy Policy</Text>
+                <Text style={styles.docCardType}>View our privacy policy</Text>
+              </View>
+            </View>
+            <Ionicons name="open-outline" size={18} color={Colors.textMuted} />
+          </Pressable>
+        </View>
 
         {/* Auth Status */}
         <View style={styles.authSection}>
@@ -783,5 +875,26 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.bodySemiBold,
     fontSize: FontSizes.md,
     color: Colors.white,
+  },
+  // Toggle switch
+  toggleTrack: {
+    width: 48,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: Colors.border,
+    justifyContent: 'center',
+    paddingHorizontal: 2,
+  },
+  toggleTrackActive: {
+    backgroundColor: Colors.sage,
+  },
+  toggleThumb: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: Colors.white,
+  },
+  toggleThumbActive: {
+    alignSelf: 'flex-end',
   },
 });

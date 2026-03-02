@@ -82,42 +82,65 @@ export function setupRealtimeNotifications(userId: string, onNotification: (payl
   };
 }
 
-// Subscribe to realtime changes for a trip
+// Subscribe to realtime changes for a trip (verifies membership first)
 export function subscribeToTrip(tripId: string, handlers: {
   onExpense?: (payload: any) => void;
   onPoll?: (payload: any) => void;
   onItinerary?: (payload: any) => void;
   onMember?: (payload: any) => void;
 }) {
-  const channel = supabase
-    .channel(`trip:${tripId}`)
-    .on('postgres_changes', {
-      event: '*',
-      schema: 'public',
-      table: 'expenses',
-      filter: `trip_id=eq.${tripId}`,
-    }, (payload) => handlers.onExpense?.(payload))
-    .on('postgres_changes', {
-      event: '*',
-      schema: 'public',
-      table: 'polls',
-      filter: `trip_id=eq.${tripId}`,
-    }, (payload) => handlers.onPoll?.(payload))
-    .on('postgres_changes', {
-      event: '*',
-      schema: 'public',
-      table: 'itinerary_items',
-      filter: `trip_id=eq.${tripId}`,
-    }, (payload) => handlers.onItinerary?.(payload))
-    .on('postgres_changes', {
-      event: 'INSERT',
-      schema: 'public',
-      table: 'trip_members',
-      filter: `trip_id=eq.${tripId}`,
-    }, (payload) => handlers.onMember?.(payload))
-    .subscribe();
+  let channelRef: ReturnType<typeof supabase.channel> | null = null;
+
+  // Verify trip membership before subscribing
+  (async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data } = await supabase
+        .from('trip_members')
+        .select('id')
+        .eq('trip_id', tripId)
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (!data) return; // Not a member, don't subscribe
+    } catch {
+      // If verification fails (e.g. offline), allow subscription for offline-first UX
+    }
+
+    channelRef = supabase
+      .channel(`trip:${tripId}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'expenses',
+        filter: `trip_id=eq.${tripId}`,
+      }, (payload) => handlers.onExpense?.(payload))
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'polls',
+        filter: `trip_id=eq.${tripId}`,
+      }, (payload) => handlers.onPoll?.(payload))
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'itinerary_items',
+        filter: `trip_id=eq.${tripId}`,
+      }, (payload) => handlers.onItinerary?.(payload))
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'trip_members',
+        filter: `trip_id=eq.${tripId}`,
+      }, (payload) => handlers.onMember?.(payload))
+      .subscribe();
+  })();
 
   return () => {
-    supabase.removeChannel(channel);
+    if (channelRef) {
+      supabase.removeChannel(channelRef);
+    }
   };
 }

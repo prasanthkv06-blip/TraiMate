@@ -83,9 +83,8 @@ export async function lookupFlight(flightNumber: string): Promise<FlightInfo | n
   if (cached) return cached;
 
   try {
-    // AviationStack free tier only supports HTTP (not HTTPS)
     const response = await fetch(
-      `http://api.aviationstack.com/v1/flights?access_key=${API_KEY}&flight_iata=${normalized}&limit=1`
+      `${BASE_URL}/flights?access_key=${API_KEY}&flight_iata=${normalized}&limit=1`
     );
     if (!response.ok) return null;
     const data = await response.json();

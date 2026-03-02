@@ -35,11 +35,12 @@ async function supabaseSafe<T>(fn: () => Promise<T>): Promise<T | null> {
   }
 }
 
-function generateInviteCode(): string {
+async function generateInviteCode(): Promise<string> {
   const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  const bytes = await Crypto.getRandomBytesAsync(8);
   let code = '';
-  for (let i = 0; i < 6; i++) {
-    code += chars[Math.floor(Math.random() * chars.length)];
+  for (let i = 0; i < 8; i++) {
+    code += chars[bytes[i] % chars.length];
   }
   return code;
 }
@@ -58,7 +59,7 @@ export interface CreateInvitationInput {
 export async function createInvitation(input: CreateInvitationInput): Promise<InvitationLocal> {
   const deviceId = await getCurrentUserId();
   const id = Crypto.randomUUID();
-  const inviteCode = generateInviteCode();
+  const inviteCode = await generateInviteCode();
   const now = new Date().toISOString();
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(); // 7 days
 

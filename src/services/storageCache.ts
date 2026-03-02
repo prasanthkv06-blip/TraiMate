@@ -4,6 +4,7 @@
  * A trips index stores metadata for listing.
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { SecureStorage } from '../lib/secureStorage';
 import type { ItineraryDay } from '../utils/itineraryGenerator';
 
 const TRIPS_INDEX_KEY = '@traimate_trips_index';
@@ -168,11 +169,11 @@ export interface PackingItemLocal {
 }
 
 export async function saveTripLocally(tripId: string, data: TripBlob): Promise<void> {
-  await AsyncStorage.setItem(tripKey(tripId), JSON.stringify(data));
+  await SecureStorage.setItem(tripKey(tripId), JSON.stringify(data));
 }
 
 export async function loadTripLocally(tripId: string): Promise<TripBlob | null> {
-  const raw = await AsyncStorage.getItem(tripKey(tripId));
+  const raw = await SecureStorage.getItem(tripKey(tripId));
   if (!raw) return null;
   try {
     return JSON.parse(raw);
@@ -182,7 +183,7 @@ export async function loadTripLocally(tripId: string): Promise<TripBlob | null> 
 }
 
 export async function removeTripLocally(tripId: string): Promise<void> {
-  await AsyncStorage.removeItem(tripKey(tripId));
+  await SecureStorage.removeItem(tripKey(tripId));
   // Also remove from index
   const index = await loadTripsIndex();
   const updated = index.filter(t => t.id !== tripId);
@@ -300,13 +301,13 @@ export const DOCUMENT_TYPE_CONFIG: Record<DocumentType, { label: string; emoji: 
 };
 
 export async function loadDocuments(): Promise<TravelDocument[]> {
-  const raw = await AsyncStorage.getItem(DOCUMENTS_KEY);
+  const raw = await SecureStorage.getItem(DOCUMENTS_KEY);
   if (!raw) return [];
   try { return JSON.parse(raw); } catch { return []; }
 }
 
 export async function saveDocuments(docs: TravelDocument[]): Promise<void> {
-  await AsyncStorage.setItem(DOCUMENTS_KEY, JSON.stringify(docs));
+  await SecureStorage.setItem(DOCUMENTS_KEY, JSON.stringify(docs));
 }
 
 export async function addDocument(doc: TravelDocument): Promise<void> {

@@ -7,6 +7,8 @@ import { makeRedirectUri } from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { migrateGuestDataToUser } from '../services/dataMigration';
+import { clearMasterKey } from '../lib/secureStorage';
+import { logSecurityEvent } from '../services/auditService';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -109,6 +111,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) return { error: new Error(error.message) };
+      logSecurityEvent('account_login', { method: 'email' });
       return { error: null };
     } catch (e) {
       return { error: e as Error };
@@ -117,8 +120,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signInWithGoogle = async () => {
     try {
-      const redirectUri = makeRedirectUri({ scheme: 'traimate', path: 'auth/callback' });
+      const redirectUri = Platform.OS === 'web'
+        ? `${window.location.origin}/auth/callback`
+        : makeRedirectUri({ scheme: 'traimate', path: 'auth/callback' });
 
+      if (Platform.OS === 'web') {
+        // On web, redirect directly instead of using WebBrowser
+        const { data, error } = await supabase.auth.signInWithOAuth({
+          provider: 'google',
+          options: {
+            redirectTo: redirectUri,
+          },
+        });
+        if (error) return { error: new Error(error.message) };
+        // If Supabase didn't auto-redirect, do it manually
+        if (data?.url) {
+          window.location.href = data.url;
+        }
+        return { error: null };
+      }
+
+      // Native: use WebBrowser
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
@@ -134,7 +156,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (result.type === 'success' && result.url) {
         const url = new URL(result.url);
-        // Tokens may be in hash fragment or query params
         const params = new URLSearchParams(url.hash.substring(1) || url.search.substring(1));
         const accessToken = params.get('access_token');
         const refreshToken = params.get('refresh_token');
@@ -200,6 +221,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
+    logSecurityEvent('account_logout');
     await supabase.auth.signOut();
     await AsyncStorage.multiRemove([ONBOARDED_KEY, GUEST_MODE_KEY]);
     setSession(null);
@@ -218,6 +240,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email);
       if (error) return { error: new Error(error.message) };
+      logSecurityEvent('password_reset_requested', { email });
       return { error: null };
     } catch (e) {
       return { error: e as Error };
@@ -226,13 +249,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const deleteAccount = async () => {
     try {
-      // Mark profile as deleted
       if (session?.user) {
-        await (supabase.from('profiles') as any).update({
-          name: 'Deleted User',
-          is_guest: true,
-        }).eq('id', session.user.id);
+        logSecurityEvent('account_delete_requested');
+
+        // Cascade delete all user data via Supabase RPC
+        const { error: rpcError } = await (supabase.rpc as any)('delete_user_account', {
+          target_user_id: session.user.id,
+        });
+        if (rpcError) {
+          console.warn('RPC delete_user_account error:', rpcError.message);
+          // Fallback: mark profile as deleted
+          await (supabase.from('profiles') as any).update({
+            name: 'Deleted User',
+            is_guest: true,
+          }).eq('id', session.user.id);
+        }
       }
+
+      // Clear all local data
+      const allKeys = await AsyncStorage.getAllKeys();
+      const traimateKeys = allKeys.filter(k => k.startsWith('@traimate'));
+      if (traimateKeys.length > 0) {
+        await AsyncStorage.multiRemove(traimateKeys);
+      }
+
+      // Clear encryption master key
+      clearMasterKey();
+
       await signOut();
       return { error: null };
     } catch (e) {
