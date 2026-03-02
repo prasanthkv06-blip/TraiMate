@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { View, ActivityIndicator, StyleSheet, Text } from 'react-native';
+import { View, ActivityIndicator, StyleSheet, Text, Platform } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { supabase } from '../../src/lib/supabase';
 import { Colors, Fonts, FontSizes } from '../../src/constants/theme';
@@ -11,12 +11,21 @@ export default function AuthCallbackScreen() {
   useEffect(() => {
     async function handleCallback() {
       try {
-        const { access_token, refresh_token } = params;
+        let accessToken = params.access_token;
+        let refreshToken = params.refresh_token;
 
-        if (access_token && refresh_token) {
+        // On web, tokens may be in the URL hash fragment
+        if (!accessToken && Platform.OS === 'web' && typeof window !== 'undefined') {
+          const hash = window.location.hash.substring(1);
+          const hashParams = new URLSearchParams(hash);
+          accessToken = hashParams.get('access_token') ?? undefined;
+          refreshToken = hashParams.get('refresh_token') ?? undefined;
+        }
+
+        if (accessToken && refreshToken) {
           const { error } = await supabase.auth.setSession({
-            access_token,
-            refresh_token,
+            access_token: accessToken,
+            refresh_token: refreshToken,
           });
 
           if (error) {
@@ -25,13 +34,18 @@ export default function AuthCallbackScreen() {
             return;
           }
 
-          // Session set successfully — the auth state listener in AuthContext
-          // will handle the navigation via the root index
           router.replace('/');
           return;
         }
 
-        // No tokens — redirect back to auth
+        // Supabase may auto-detect tokens on web — check for existing session
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          router.replace('/');
+          return;
+        }
+
+        // No tokens and no session — redirect back to auth
         router.replace('/auth');
       } catch (e) {
         console.warn('OAuth callback error:', e);

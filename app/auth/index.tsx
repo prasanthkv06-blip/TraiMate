@@ -93,12 +93,17 @@ export default function AuthLandingScreen() {
   };
 
   const handleGoogle = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
     setLoadingProvider('google');
     const { error } = await auth.signInWithGoogle();
-    setLoadingProvider(null);
-    if (!error) {
-      router.replace('/');
+    if (Platform.OS !== 'web') {
+      // On web, the browser redirects — these won't run
+      setLoadingProvider(null);
+      if (!error) {
+        router.replace('/');
+      }
     }
   };
 
